@@ -1,0 +1,114 @@
+@startuml
+
+title User Inventory Item Request Sequence Diagram
+
+actor User
+participant "Frontend Website" as Frontend
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as Middleware
+  participant "Controller" as Controller
+  participant "Inventory Service" as Service
+  participant "Eloquent ORM" as ORM
+end box
+
+database "MariaDB Database" as Database
+
+== Search Inventory ==
+User -> Frontend: Search inventory item
+activate Frontend
+
+Frontend -> Apache: Request /items
+activate Apache
+Apache -> Middleware: Forward request
+deactivate Apache
+
+activate Middleware
+Middleware -> Controller: Pass validated request
+deactivate Middleware
+
+activate Controller
+Controller -> Service: getItems()
+activate Service
+
+Service -> ORM: Retrieve items
+activate ORM
+ORM -> Database: SELECT * FROM items
+activate Database
+Database --> ORM: Item records
+deactivate Database
+ORM --> Service: Item collection
+deactivate ORM
+
+Service --> Controller: Item list
+deactivate Service
+Controller --> Frontend: Item list
+deactivate Controller
+
+Frontend --> User: Display inventory
+deactivate Frontend
+
+
+== Borrow Request ==
+User -> Frontend: Select item & Request
+activate Frontend
+
+Frontend -> Apache: POST /borrowRequest
+activate Apache
+Apache -> Middleware: Forward request
+deactivate Apache
+
+activate Middleware
+Middleware -> Controller: Pass validated request
+deactivate Middleware
+
+activate Controller
+Controller -> Service: createBorrowRequest()
+activate Service
+
+Service -> ORM: Check item availability
+activate ORM
+ORM -> Database: SELECT status FROM items
+activate Database
+Database --> ORM: Item status
+deactivate Database
+ORM --> Service: Availability result
+deactivate ORM
+
+alt Item available
+
+    Service -> ORM: Save borrow request
+    activate ORM
+    ORM -> Database: INSERT borrow_request
+    activate Database
+    Database --> ORM: Insert successful
+    deactivate Database
+    ORM --> Service: Request persisted
+    deactivate ORM
+
+    Service -> ORM: Update item status [Reserved]
+    activate ORM
+    ORM -> Database: UPDATE items SET status='Reserved'
+    activate Database
+    Database --> ORM: Update successful
+    deactivate Database
+    ORM --> Service: Status updated
+    deactivate ORM
+
+    Service --> Controller: Request approved
+
+else Item unavailable
+
+    Service --> Controller: Request rejected
+
+end
+
+deactivate Service
+Controller --> Frontend: Response
+deactivate Controller
+
+Frontend --> User: Display confirmation
+deactivate Frontend
+
+@enduml
