@@ -1,0 +1,88 @@
+@startuml
+
+actor User
+participant "Frontend Website" as Frontend
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as Middleware
+  participant "Controller" as Controller
+  participant "Inventory Service" as Service
+end box
+
+database "MariaDB Database" as Database
+
+== Search Inventory ==
+User -> Frontend: Search inventory item
+activate Frontend
+
+Frontend -> Apache: Request /items
+activate Apache
+Apache -> Middleware: Forward request
+deactivate Apache
+
+activate Middleware
+Middleware -> Controller: Pass validated request
+deactivate Middleware
+
+activate Controller
+Controller -> Service: getItems()
+activate Service
+Service -> Database: Query items
+activate Database
+Database --> Service: Item list
+deactivate Database
+Service --> Controller: Item list
+deactivate Service
+Controller --> Frontend: Item list
+deactivate Controller
+
+Frontend --> User: Display inventory
+deactivate Frontend
+
+== Borrow Request ==
+User -> Frontend: Select item & Request
+activate Frontend
+
+Frontend -> Apache: POST /borrowRequest
+activate Apache
+Apache -> Middleware: Forward request
+deactivate Apache
+
+activate Middleware
+Middleware -> Controller: Pass validated request
+deactivate Middleware
+
+activate Controller
+Controller -> Service: createBorrowRequest()
+activate Service
+
+Service -> Database: Check item availability
+activate Database
+Database --> Service: Available?
+deactivate Database
+
+alt Item available
+    Service -> Database: Save borrow request
+    activate Database
+    Database --> Service: Request saved
+    deactivate Database
+
+    Service -> Database: Update item status [Reserved]
+    activate Database
+    Database --> Service: Status updated
+    deactivate Database
+
+    Service --> Controller: Request approved
+else Item unavailable
+    Service --> Controller: Request rejected
+end
+
+deactivate Service
+Controller --> Frontend: Response
+deactivate Controller
+
+Frontend --> User: Display confirmation
+deactivate Frontend
+
+@enduml
