@@ -15,6 +15,11 @@ end box
 
 database "MariaDB Database" as Database
 
+note right of User
+It is assumed the user is
+authenticated/authorized
+end note
+
 == Search Inventory ==
 User -> Frontend: Search inventory item
 activate Frontend

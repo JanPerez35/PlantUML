@@ -16,6 +16,11 @@ end box
 
 database "MariaDB Database" as DB
 
+note right of User
+It is assumed the user is
+authenticated/authorized
+end note
+
 == Search Users ==
 User -> FE: Open "Search Users" tab
 activate User

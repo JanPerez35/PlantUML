@@ -1,6 +1,6 @@
 @startuml
 
-title Inventory Request and Reminder Sequence Diagram
+title Email Reminder Sequence Diagram
 
 actor User
 
@@ -17,6 +17,11 @@ end box
 
 participant "Email Service SMTP" as Email
 database "MariaDB Database" as DB
+
+note right of User
+It is assumed the user is
+authenticated/authorized
+end note
 
 == Inventory Request Response ==
 User -> FE: Submit inventory request

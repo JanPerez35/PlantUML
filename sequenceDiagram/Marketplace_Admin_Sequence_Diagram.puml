@@ -7,6 +7,10 @@ actor "Marketplace Admin" as Admin
 note right of Admin
 Marketplace Admin inherits all
 Marketplace User capabilities:
+
+It is assumed the Market Admin is
+authenticated/authorized
+
 This diagram only shows
 additional administrative actions.
 end note

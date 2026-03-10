@@ -17,6 +17,11 @@ end box
 
 database "MariaDB Database" as DB
 
+note right of User
+It is assumed the user is
+authenticated/authorized
+end note
+
 == View User Posts ==
 User -> FE: Click "My Posts"
 activate User

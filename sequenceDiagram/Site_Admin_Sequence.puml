@@ -17,7 +17,8 @@ end box
 database "MariaDB Database" as DB
 
 note right of Admin
-Site Admin has full system privileges.
+Site Admin has full system privileges. It is assumed the user is
+authenticated/authorized.
 They can perform all actions available to:
 - Inventory Admin
 - Marketplace Admin

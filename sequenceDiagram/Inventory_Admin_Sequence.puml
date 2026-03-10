@@ -20,9 +20,8 @@ Inventory Admin can perform
 regular inventory user viewing actions,
 such as browsing and checking inventory.
 
-Borrow request actions are not included,
-since Inventory Admin manages inventory
-instead of requesting it.
+It is assumed the Inventory
+Admin is authenticated/authorized
 
 This diagram only shows
 additional administrative actions.
