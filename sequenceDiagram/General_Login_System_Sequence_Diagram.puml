@@ -16,7 +16,7 @@ end box
 
 participant "UPR Identity Provider\n(UPRM Auth Server)" as IdP
 database "MariaDB Database" as DB
-
+loop
 User -> FE: Click Login option
 activate FE
 
@@ -97,5 +97,6 @@ end
 
 deactivate S
 deactivate FE
+end
 
 @enduml
