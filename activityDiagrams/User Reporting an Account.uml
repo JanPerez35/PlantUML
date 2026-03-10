@@ -1,0 +1,42 @@
+@startuml
+title User Reporting an Account
+
+|Regular User|
+start
+:Open report account option;
+:Select report reason;
+:Enter report details and/or evidence;
+:Submit report;
+
+|System|
+:Validate report data;
+
+while (Report invalid?) is (Yes)
+  :Display validation error message;
+  |Regular User|
+  :Correct report information;
+  :Resubmit report;
+  |System|
+  :Validate report data;
+endwhile (No)
+
+:Store report in database;
+:Notify administrator;
+
+|Administrator|
+:Review report and evidence;
+
+if (Violation confirmed?) then (Yes)
+  |System|
+  :Ban reported user account;
+  :Log moderation action;
+  :Mark report as resolved;
+else (No)
+  |System|
+  :Dismiss report;
+  :Mark report as closed;
+  :Log review outcome;
+endif
+
+stop
+@enduml

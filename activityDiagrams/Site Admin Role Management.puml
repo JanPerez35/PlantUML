@@ -1,0 +1,30 @@
+@startuml
+title Site Admin Role Management
+
+|Site Admin|
+start
+:Log into system;
+:Open User management;
+:Select target user;
+:Select new role:
+-Site Admin
+-Facility Admin
+-Inventory Admin
+-Marketplace Admin
+-User;
+
+|System|
+:Update target user's role in database;
+:Log role change action;
+:Display success message;
+
+|Affected User|
+:Continue current session or refresh session;
+
+|System|
+:Load current role on next page request;
+:Apply updated permissions;
+:Display interface and modules\naccording to new role;
+
+stop
+@enduml

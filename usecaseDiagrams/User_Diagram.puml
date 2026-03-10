@@ -1,0 +1,76 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+
+actor User
+
+rectangle MAIKINE {
+
+  usecase "Log-in" as UC_Login
+
+
+  usecase "Access Marketplace" as UC_Market
+  usecase "Chat with seller" as UC_Chat
+  usecase "Report account" as UC_Report
+  usecase "List equipment for sale" as UC_List
+  usecase "Browse Marketplace" as UC_BrowseMP
+  usecase "Delete own listing" as UC_DeleteList
+  usecase "Rate account" as UC_Rate
+  usecase "Search items"  as UC_Search
+  usecase "Filter search" as UC_Filter
+
+  usecase "Access Profile" as UC_Profile
+  usecase "View listing" as UC_View
+  usecase "Delete listing" as UC_Delete
+  usecase "View chats" as UC_ViewChat
+  usecase "View borrow requests" as UC_BorrowRequest
+  usecase " View reviews" as UC_Review
+
+  usecase "Access Kinventory" as UC_Lending
+  usecase "Browse department inventory" as UC_Browse
+  usecase "Request sport equipment" as UC_Request
+  usecase "Search for equipment" as UC_EquipSearch
+  usecase "Filter equipment" as UC_EquipFilter
+
+  usecase "Receive email" as UC_Email
+  usecase "Logout" as UC_Logout
+}
+
+User --> UC_Login
+User --> UC_Logout
+
+
+UC_Login ..> UC_Market : <<include>>
+UC_Login ..> UC_Profile : <<include>>
+UC_Login ..> UC_Lending : <<include>>
+
+
+UC_Market ..> UC_Chat : <<include>>
+
+
+UC_Market ..> UC_Report : <<include>>
+UC_Market ..> UC_List : <<include>>
+UC_Market ..> UC_BrowseMP: <<include>>
+UC_Market ..> UC_DeleteList: <<include>>
+UC_Market ..> UC_Rate: <<include>>
+UC_Market ..> UC_Search: <<include>>
+UC_Market ..> UC_Filter: <<include>>
+
+
+UC_Profile ..> UC_View : <<include>>
+UC_Profile ..> UC_Delete : <<include>>
+UC_Profile ..> UC_ViewChat: <<include>>
+UC_Profile ..> UC_BorrowRequest: <<include>>
+UC_Profile ..> UC_Review: <<include>>
+
+UC_Lending ..> UC_Browse : <<include>>
+UC_Lending ..> UC_Request : <<include>>
+UC_Lending ..> UC_EquipSearch: <<include>>
+UC_Lending ..> UC_EquipFilter: <<include>>
+UC_Email ..> UC_Request: <<extends>>
+
+
+
+UC_Chat <.. UC_Email : <<extend>>
+
+@enduml

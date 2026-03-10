@@ -1,0 +1,30 @@
+@startuml
+title Access Log Management
+
+|Site Admin|
+start
+:Open access log dashboard;
+
+if (Apply filters?) then (Yes)
+  :Enter search or filter criteria;
+else (No)
+endif
+
+|System|
+:Retrieve matching access log records;
+if (Matching logs found?) then (Yes)
+  :Display log entries;
+else (No)
+  :Display no records found message;
+endif
+
+|Site Admin|
+if (Export logs?) then (Yes)
+  |System|
+  :Generate CSV export;
+  :Download CSV file;
+else (No)
+endif
+
+stop
+@enduml

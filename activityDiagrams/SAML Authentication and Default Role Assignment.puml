@@ -1,0 +1,36 @@
+@startuml
+title SAML Authentication and Default Role Assignment
+
+|User|
+start
+:Access MAIKINE;
+:Select login;
+
+|Laravel (Service Provider)|
+:Redirect user to UPRM SAML login;
+
+|UPRM Identity Provider|
+:Authenticate user credentials;
+if (Authentication successful?) then (Yes)
+  :Return SAML assertion to Laravel;
+else (No)
+  :Deny authentication;
+  stop
+endif
+
+|Laravel (Service Provider)|
+:Validate SAML assertion;
+:Extract user identity attributes;
+:Search for local user account;
+if (Account exists?) then (Yes)
+  :Load stored role;
+else (No)
+  :Create local user account;
+  :Assign default role = user;
+endif
+
+:Authorize access based on role;
+:Display permitted system dashboard;
+
+stop
+@enduml

@@ -1,0 +1,30 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+
+actor "Facility Administrator" as FacilityAdmin
+
+rectangle MAIKINE {
+
+  usecase "Log-In" as UC_Login
+  usecase "Log-Out" as UC_Logout
+  usecase "Access\noperational\ncost page" as UC_OperationalCost
+  usecase "Download\nfacility operational cost CSV" as UC_DownloadCost
+  usecase "Add facility\nlending event" as UC_AddEvent
+  usecase "Delete\nfacility lending\nevent" as UC_DeleteEvent
+  usecase "Search events" as UC_Search
+  usecase "Filter events" as UC_Filter
+}
+
+FacilityAdmin --> UC_Login
+FacilityAdmin --> UC_Logout
+
+UC_Login ..> UC_OperationalCost : <<include>>
+
+UC_OperationalCost ..> UC_DownloadCost : <<include>>
+UC_OperationalCost ..> UC_AddEvent : <<include>>
+UC_OperationalCost ..> UC_DeleteEvent : <<include>>
+UC_OperationalCost ..> UC_Search : <<include>>
+UC_OperationalCost ..> UC_Filter
+
+@enduml

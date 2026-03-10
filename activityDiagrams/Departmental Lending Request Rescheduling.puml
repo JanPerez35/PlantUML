@@ -1,0 +1,24 @@
+@startuml
+title Departmental Lending Request Rescheduling
+
+|User|
+start
+:Open lending request form;
+:Select item and needed date;
+:Submit request;
+
+|System|
+:Check request submission time;
+:Check request window rules;
+
+if (Request is at least 24 hours in advance\nand within allowed request period?) then (Yes)
+  :Register request for selected date;
+  :Notify user of submitted request;
+else (No)
+  :Determine next valid lending date;
+  :Move request to next eligible day;
+  :Notify user of rescheduled request date;
+endif
+
+stop
+@enduml

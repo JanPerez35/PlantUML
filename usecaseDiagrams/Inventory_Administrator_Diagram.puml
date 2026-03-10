@@ -1,0 +1,51 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+
+actor "Inventory Administrator" as InventoryAdmin
+
+rectangle MAIKINE {
+
+  usecase "Log-In" as UC_Login
+  usecase "Access\nInventory\nManagement" as UC_InventoryMgmt
+  usecase "Add\ninventory" as UC_AddInventory
+  usecase "Update\nInventory" as UC_UpdateInventory
+  usecase "Remove\nfrom inventory" as UC_RemoveInventory
+  usecase "Approve\nrequests" as UC_ApproveRequests
+  usecase "Deny\nrequests" as UC_DenyRequests
+  usecase "View active\nborrowers" as UC_ViewBorrowers
+  usecase "Access\nDepartment\nLending" as UC_DepLending
+  usecase "Ban user" as UC_BanUser
+  usecase "Browse\ninventory" as UC_BrowseInventory
+  usecase "View Inventory" as UC_View
+  usecase "View requests" as UC_ViewRequest
+  usecase "Search inventory" as UC_Search
+  usecase "Filter inventory" as UC_Filter
+  usecase "Log-Out" as UC_Logout
+}
+
+InventoryAdmin --> UC_Login
+InventoryAdmin --> UC_Logout
+
+UC_Login ..> UC_InventoryMgmt : <<include>>
+UC_Login ..> UC_DepLending : <<include>>
+
+UC_InventoryMgmt ..> UC_AddInventory : <<include>>
+UC_InventoryMgmt ..> UC_RemoveInventory : <<include>>
+UC_InventoryMgmt ..> UC_ApproveRequests : <<include>>
+UC_InventoryMgmt ..> UC_DenyRequests : <<include>>
+UC_InventoryMgmt ..> UC_ViewBorrowers : <<include>>
+UC_InventoryMgmt ..> UC_View: <<include>>
+UC_InventoryMgmt ..> UC_ViewRequest <<include>>
+UC_InventoryMgmt ..> UC_BanUser : <<include>>
+
+UC_AddInventory ..> UC_UpdateInventory : <<include>>
+UC_RemoveInventory ..> UC_UpdateInventory : <<include>>
+UC_ApproveRequests ..> UC_RemoveInventory : <<include>>
+
+
+UC_DepLending ..> UC_BrowseInventory : <<include>>
+UC_DepLending ..> UC_Search : <<include>>
+UC_DepLending ..> UC_Filter :: <<include>>
+
+@enduml
