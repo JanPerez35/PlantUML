@@ -1,0 +1,101 @@
+@startuml
+
+title User Login Authentication Sequence Diagram
+
+actor "User (Any)" as User
+
+participant "Frontend (Website)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "Controller" as C
+  participant "SAML Authentication Service" as S
+  participant "Eloquent ORM" as ORM
+end box
+
+participant "UPR Identity Provider\n(UPRM Auth Server)" as IdP
+database "MariaDB Database" as DB
+
+User -> FE: Click Login option
+activate FE
+
+FE -> Apache: Send login request
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass login request
+deactivate MW
+
+activate C
+C -> S: Request authentication
+deactivate C
+
+activate S
+S -> IdP: SAML Authentication Request
+activate IdP
+
+IdP --> User: Show UPR login page
+activate User
+
+User -> IdP: Enter UPR credentials
+deactivate User
+
+IdP -> IdP: Verify credentials
+IdP --> S: SAML Assertion (authenticated user)
+deactivate IdP
+
+S -> S: Validate SAML assertion
+
+S -> ORM: Check or assign user role
+activate ORM
+ORM -> DB: Query user / role data
+activate DB
+DB --> ORM: User role result
+deactivate DB
+ORM --> S: Role lookup result
+deactivate ORM
+
+alt Role found
+    S --> C: Authenticated user + role
+    activate C
+    C --> MW: Login success response
+    deactivate C
+
+    activate MW
+    MW --> Apache: Authenticated response
+    deactivate MW
+
+    activate Apache
+    Apache --> FE: Return authenticated response
+    deactivate Apache
+
+    activate User
+    FE --> User: Redirect to role dashboard
+    deactivate User
+
+else User not registered
+    S --> C: Access denied
+    activate C
+    C --> MW: Denial response
+    deactivate C
+
+    activate MW
+    MW --> Apache: Access denied response
+    deactivate MW
+
+    activate Apache
+    Apache --> FE: Return denial response
+    deactivate Apache
+
+    activate User
+    FE --> User: Show denial message
+    deactivate User
+end
+
+deactivate S
+deactivate FE
+
+@enduml

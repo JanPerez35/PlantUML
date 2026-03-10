@@ -1,0 +1,210 @@
+@startuml
+
+title Marketplace Admin Extended Capabilities Sequence Diagram
+
+actor "Marketplace Admin" as Admin
+
+note right of Admin
+Marketplace Admin inherits all
+Marketplace User capabilities:
+This diagram only shows
+additional administrative actions.
+end note
+
+participant "Frontend (Website)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "Controller" as C
+  participant "Marketplace Service" as Service
+  participant "Messaging Service" as MessageService
+  participant "Eloquent ORM" as ORM
+end box
+
+database "MariaDB Database" as DB
+
+== Admin Delete Any Post ==
+Admin -> FE: Select any post and delete
+activate Admin
+activate FE
+
+FE -> Apache: DELETE /admin/deletePost(postId)
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> Service: deletePost(postId)
+activate Service
+
+Service -> ORM: Delete selected post
+activate ORM
+ORM -> DB: Remove post record
+activate DB
+DB --> ORM: Deletion success
+deactivate DB
+ORM --> Service: Post removed
+deactivate ORM
+
+Service --> C: Confirm deletion
+deactivate Service
+C --> FE: Update marketplace view
+deactivate C
+
+FE --> Admin: Show "Post removed"
+deactivate FE
+deactivate Admin
+
+
+== Search and Ban User ==
+Admin -> FE: Search user
+activate Admin
+activate FE
+
+FE -> Apache: GET /admin/users?search
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> Service: searchUsers()
+activate Service
+
+Service -> ORM: Query users
+activate ORM
+ORM -> DB: Select matching users
+activate DB
+DB --> ORM: User list
+deactivate DB
+ORM --> Service: User collection
+deactivate ORM
+
+Service --> C: Return users
+deactivate Service
+C --> FE: Display users
+deactivate C
+
+FE --> Admin: Show user list
+deactivate FE
+deactivate Admin
+
+
+Admin -> FE: Ban selected user
+activate Admin
+activate FE
+
+FE -> Apache: POST /admin/banUser
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> Service: banUser(userId)
+activate Service
+
+Service -> ORM: Update user status [Banned]
+activate ORM
+ORM -> DB: Update user record
+activate DB
+DB --> ORM: Update success
+deactivate DB
+ORM --> Service: Ban persisted
+deactivate ORM
+
+Service --> C: Ban confirmed
+deactivate Service
+C --> FE: Response
+deactivate C
+
+FE --> Admin: Show "User banned"
+deactivate FE
+deactivate Admin
+
+
+== View Flagged Reviews ==
+Admin -> FE: View flagged reviews
+activate Admin
+activate FE
+
+FE -> Apache: GET /admin/reviews
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> Service: getFlaggedReviews()
+activate Service
+
+Service -> ORM: Query flagged reviews
+activate ORM
+ORM -> DB: Select flagged reviews
+activate DB
+DB --> ORM: Review list
+deactivate DB
+ORM --> Service: Review collection
+deactivate ORM
+
+Service --> C: Return reviews
+deactivate Service
+C --> FE: Display reviews
+deactivate C
+
+FE --> Admin: Show flagged reviews
+deactivate FE
+deactivate Admin
+
+
+== Resolve Report ==
+Admin -> FE: Open report and resolve
+activate Admin
+activate FE
+
+FE -> Apache: POST /admin/resolveReport
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> Service: resolveReport(reportId)
+activate Service
+
+Service -> ORM: Update report status [Resolved]
+activate ORM
+ORM -> DB: Update report record
+activate DB
+DB --> ORM: Update success
+deactivate DB
+ORM --> Service: Resolution persisted
+deactivate ORM
+
+Service --> C: Resolution confirmed
+deactivate Service
+C --> FE: Response
+deactivate C
+
+FE --> Admin: Show "Report resolved"
+deactivate FE
+deactivate Admin
+
+@enduml

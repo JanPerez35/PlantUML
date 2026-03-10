@@ -1,0 +1,156 @@
+@startuml
+
+title User Post, Message, and Request Management Sequence Diagram
+
+actor User
+
+participant "Frontend (Website)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "Controller" as C
+  participant "Inventory Service" as Service
+  participant "Messaging Service" as MessageService
+  participant "Eloquent ORM" as ORM
+end box
+
+database "MariaDB Database" as DB
+
+== View User Posts ==
+User -> FE: Click "My Posts"
+activate User
+activate FE
+
+FE -> Apache: GET /user/posts
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> Service: getUserPosts(userId)
+activate Service
+Service -> ORM: Query posts by userId
+activate ORM
+ORM -> DB: Select user posts
+activate DB
+DB --> ORM: List of posts
+deactivate DB
+ORM --> Service: Post collection
+deactivate ORM
+Service --> C: Return posts
+deactivate Service
+C --> FE: Return posts
+deactivate C
+
+FE --> User: Show posts
+deactivate FE
+deactivate User
+
+== Delete a Post ==
+User -> FE: Click "Delete" on post
+activate User
+activate FE
+
+FE -> Apache: DELETE /post/{postId}
+activate Apache
+Apache -> MW: Forward delete request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> Service: deletePost(postId)
+activate Service
+Service -> ORM: Delete post
+activate ORM
+ORM -> DB: Remove post record
+activate DB
+DB --> ORM: Deletion confirmed
+deactivate DB
+ORM --> Service: Post removed
+deactivate ORM
+Service --> C: Confirm deletion
+deactivate Service
+C --> FE: Confirm deletion
+deactivate C
+
+FE --> User: Display deletion confirmation
+deactivate FE
+deactivate User
+
+== Check Messages ==
+User -> FE: Open "Messages"
+activate User
+activate FE
+
+FE -> Apache: GET /user/messages
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> MessageService: getUserMessages(userId)
+activate MessageService
+MessageService -> ORM: Query messages by userId
+activate ORM
+ORM -> DB: Select user messages
+activate DB
+DB --> ORM: List of messages
+deactivate DB
+ORM --> MessageService: Message collection
+deactivate ORM
+MessageService --> C: Return messages
+deactivate MessageService
+C --> FE: Display messages
+deactivate C
+
+FE --> User: Show messages
+deactivate FE
+deactivate User
+
+== View Borrow/Lend Requests ==
+User -> FE: Open "My Requests"
+activate User
+activate FE
+
+FE -> Apache: GET /user/requests
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> Service: getUserRequests(userId)
+activate Service
+Service -> ORM: Query borrow/lend requests
+activate ORM
+ORM -> DB: Select user requests
+activate DB
+DB --> ORM: List of requests
+deactivate DB
+ORM --> Service: Request collection
+deactivate ORM
+Service --> C: Return requests
+deactivate Service
+C --> FE: Display requests
+deactivate C
+
+FE --> User: Show request statuses
+deactivate FE
+deactivate User
+
+@enduml

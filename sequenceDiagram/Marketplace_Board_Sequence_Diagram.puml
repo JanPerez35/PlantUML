@@ -1,0 +1,198 @@
+@startuml
+
+title Marketplace User Interaction Sequence Diagram
+
+actor User
+
+participant "Frontend (Website)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "Controller" as C
+  participant "Marketplace Service" as Service
+  participant "Messaging Service" as MessageService
+  participant "Eloquent ORM" as ORM
+end box
+
+database "MariaDB Database" as DB
+
+== Viewing Posts ==
+User -> FE: Browse marketplace
+activate User
+activate FE
+
+FE -> Apache: Request /posts
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> Service: getPosts()
+activate Service
+Service -> ORM: Retrieve all posts
+activate ORM
+ORM -> DB: Query all posts
+activate DB
+DB --> ORM: Post records
+deactivate DB
+ORM --> Service: Post collection
+deactivate ORM
+Service --> C: Return posts
+deactivate Service
+C --> FE: Display posts
+deactivate C
+
+FE --> User: Show post list
+deactivate FE
+deactivate User
+
+== Creating a Post ==
+User -> FE: Create new post (title, description, price)
+activate User
+activate FE
+
+FE -> Apache: POST /createPost
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> Service: createPost(post data)
+activate Service
+Service -> ORM: Save new post
+activate ORM
+ORM -> DB: Insert new post
+activate DB
+DB --> ORM: Post saved
+deactivate DB
+ORM --> Service: Post persisted
+deactivate ORM
+Service --> C: Confirm post creation
+deactivate Service
+C --> FE: Display new post
+deactivate C
+
+FE --> User: Show "Post created successfully"
+deactivate FE
+deactivate User
+
+== Deleting a Post ==
+User -> FE: Find own post and click delete
+activate User
+activate FE
+
+FE -> Apache: DELETE /deletePost(postId)
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> Service: deletePost(postId)
+activate Service
+
+Service -> ORM: Verify post owner
+activate ORM
+ORM -> DB: Query post owner
+activate DB
+DB --> ORM: Owner verified
+deactivate DB
+ORM --> Service: Ownership result
+deactivate ORM
+
+Service -> ORM: Delete post
+activate ORM
+ORM -> DB: Delete post record
+activate DB
+DB --> ORM: Post deleted
+deactivate DB
+ORM --> Service: Deletion complete
+deactivate ORM
+
+Service --> C: Confirm deletion
+deactivate Service
+C --> FE: Update marketplace view
+deactivate C
+
+FE --> User: Show "Post deleted successfully"
+deactivate FE
+deactivate User
+
+== Messaging Seller ==
+User -> FE: Click post and send message
+activate User
+activate FE
+
+FE -> Apache: POST /sendMessage
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> MessageService: sendMessage(postId, message)
+activate MessageService
+
+MessageService -> ORM: Check existing chat for this post
+activate ORM
+ORM -> DB: Query chat by post and users
+activate DB
+DB --> ORM: Chat exists?
+deactivate DB
+ORM --> MessageService: Chat lookup result
+deactivate ORM
+
+alt Chat exists
+    MessageService -> ORM: Save message in existing chat
+    activate ORM
+    ORM -> DB: Insert message
+    activate DB
+    DB --> ORM: Message saved
+    deactivate DB
+    ORM --> MessageService: Save confirmed
+    deactivate ORM
+else New chat
+    MessageService -> ORM: Create new chat
+    activate ORM
+    ORM -> DB: Insert chat
+    activate DB
+    DB --> ORM: Chat created
+    deactivate DB
+    ORM --> MessageService: Chat persisted
+    deactivate ORM
+
+    MessageService -> ORM: Save message in new chat
+    activate ORM
+    ORM -> DB: Insert message
+    activate DB
+    DB --> ORM: Message saved
+    deactivate DB
+    ORM --> MessageService: Save confirmed
+    deactivate ORM
+end
+
+MessageService --> C: Message saved
+deactivate MessageService
+C --> FE: Confirm delivery
+deactivate C
+
+FE --> User: Show message sent confirmation
+deactivate FE
+deactivate User
+
+@enduml

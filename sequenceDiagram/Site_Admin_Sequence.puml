@@ -1,0 +1,111 @@
+@startuml
+
+title Site Administration Extended Control Sequence Diagram
+
+actor "Site Admin" as Admin
+
+participant "Frontend (Web Portal)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "Controller" as C
+  participant "Site Administration Service" as Service
+  participant "Eloquent ORM" as ORM
+end box
+
+database "MariaDB Database" as DB
+
+note right of Admin
+Site Admin has full system privileges.
+They can perform all actions available to:
+- Inventory Admin
+- Marketplace Admin
+- Facility Admin
+Those workflows are not repeated here.
+end note
+
+
+== Assign / Update / Remove User Role ==
+Admin -> FE: Search user and assign/update/remove role
+activate Admin
+activate FE
+
+FE -> Apache: POST /admin/updateUserRole
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> Service: updateUserRole(userId, role)
+activate Service
+
+Service -> ORM: Query user
+activate ORM
+ORM -> DB: Select user record
+activate DB
+DB --> ORM: User found
+deactivate DB
+ORM --> Service: User entity
+deactivate ORM
+
+Service -> ORM: Update role assignment
+activate ORM
+ORM -> DB: Update user role
+activate DB
+DB --> ORM: Role updated
+deactivate DB
+ORM --> Service: Role persisted
+deactivate ORM
+
+Service --> C: Role update confirmed
+deactivate Service
+C --> FE: Display confirmation
+deactivate C
+
+FE --> Admin: Show "User role updated"
+deactivate FE
+deactivate Admin
+
+
+== Modify Facility Cost Equation ==
+Admin -> FE: Update cost report formula
+activate Admin
+activate FE
+
+FE -> Apache: POST /admin/updateCostFormula
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> Service: updateCostFormula(newEquation)
+activate Service
+
+Service -> ORM: Store new formula
+activate ORM
+ORM -> DB: Update formula configuration
+activate DB
+DB --> ORM: Formula saved
+deactivate DB
+ORM --> Service: Formula persisted
+deactivate ORM
+
+Service --> C: Update confirmed
+deactivate Service
+C --> FE: Display confirmation
+deactivate C
+
+FE --> Admin: Show "Facility cost equation updated"
+deactivate FE
+deactivate Admin
+
+@enduml

@@ -1,0 +1,160 @@
+@startuml
+
+title Facility Admin Cost and Report Management Sequence Diagram
+
+actor "Facility Admin" as Admin
+
+participant "Frontend (Web Portal)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "Controller" as C
+  participant "Facility Cost Service" as Service
+  participant "Eloquent ORM" as ORM
+end box
+
+participant "EventFlow API" as EventFlow
+database "MariaDB Database" as DB
+
+== Adding a Cost ==
+Admin -> FE: Enter cost details (description, amount, date)
+activate Admin
+activate FE
+
+FE -> Apache: POST /addCost
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> Service: addCost(cost data)
+activate Service
+
+Service -> ORM: Save new cost entry
+activate ORM
+ORM -> DB: Insert cost record
+activate DB
+DB --> ORM: Cost saved
+deactivate DB
+ORM --> Service: Cost persisted
+deactivate ORM
+
+Service --> C: Confirm cost creation
+deactivate Service
+C --> FE: Display confirmation
+deactivate C
+
+FE --> Admin: Show "Cost added successfully"
+deactivate FE
+deactivate Admin
+
+== Pulling Data from EventFlow API ==
+Admin -> FE: Request external data
+activate Admin
+activate FE
+
+FE -> Apache: GET /pullEventFlowData
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> Service: fetchEventFlowData()
+activate Service
+
+Service -> EventFlow: Request relevant data
+activate EventFlow
+EventFlow --> Service: Return data
+deactivate EventFlow
+
+Service -> ORM: Save data locally
+activate ORM
+ORM -> DB: Insert imported data
+activate DB
+DB --> ORM: Data saved
+deactivate DB
+ORM --> Service: Data persisted
+deactivate ORM
+
+Service --> C: Return data
+deactivate Service
+C --> FE: Display pulled data
+deactivate C
+
+FE --> Admin: Show event data
+deactivate FE
+deactivate Admin
+
+== Generating a Report ==
+Admin -> FE: Generate report (select format: CSV/PDF)
+activate Admin
+activate FE
+
+FE -> Apache: POST /generateReport
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> Service: generateReport(format)
+activate Service
+
+Service -> ORM: Query costs and imported data
+activate ORM
+ORM -> DB: Select report dataset
+activate DB
+DB --> ORM: Report data
+deactivate DB
+ORM --> Service: Dataset returned
+deactivate ORM
+
+Service --> C: Prepare report
+deactivate Service
+C --> FE: Report ready for download
+deactivate C
+
+FE --> Admin: Show "Report ready"
+deactivate FE
+deactivate Admin
+
+== Downloading Report ==
+Admin -> FE: Download report
+activate Admin
+activate FE
+
+FE -> Apache: GET /downloadReport
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> Service: getReport()
+activate Service
+
+Service --> C: Return report file (CSV/PDF)
+deactivate Service
+C --> FE: Deliver report file
+deactivate C
+
+FE --> Admin: File downloaded
+deactivate FE
+deactivate Admin
+
+@enduml

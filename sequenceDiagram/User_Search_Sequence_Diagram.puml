@@ -1,0 +1,127 @@
+@startuml
+
+title User Search and Profile Interaction Sequence Diagram
+
+actor User
+
+participant "Frontend (Website)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "Controller" as C
+  participant "User Service" as Service
+  participant "Eloquent ORM" as ORM
+end box
+
+database "MariaDB Database" as DB
+
+== Search Users ==
+User -> FE: Open "Search Users" tab
+activate User
+activate FE
+
+FE -> Apache: GET /users
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> Service: getUsers()
+activate Service
+
+Service -> ORM: Query users
+activate ORM
+ORM -> DB: Select users
+activate DB
+DB --> ORM: User list
+deactivate DB
+ORM --> Service: User collection
+deactivate ORM
+
+Service --> C: Return users
+deactivate Service
+C --> FE: Display users
+deactivate C
+
+FE --> User: Show search results
+deactivate FE
+deactivate User
+
+== View Profile ==
+User -> FE: Click user profile
+activate User
+activate FE
+
+FE -> Apache: GET /userProfile(userId)
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> Service: getUserProfile(userId)
+activate Service
+
+Service -> ORM: Query profile data
+activate ORM
+ORM -> DB: Select profile data
+activate DB
+DB --> ORM: Profile info
+deactivate DB
+ORM --> Service: Profile result
+deactivate ORM
+
+Service --> C: Return profile
+deactivate Service
+C --> FE: Display profile
+deactivate C
+
+FE --> User: Show user profile
+deactivate FE
+deactivate User
+
+== Optional Report ==
+User -> FE: Click "Report User"
+activate User
+activate FE
+
+FE -> Apache: POST /reportUser
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> Service: createUserReport(userId, reason)
+activate Service
+
+Service -> ORM: Save report
+activate ORM
+ORM -> DB: Insert report
+activate DB
+DB --> ORM: Report saved
+deactivate DB
+ORM --> Service: Report persisted
+deactivate ORM
+
+Service --> C: Report confirmed
+deactivate Service
+C --> FE: Display confirmation
+deactivate C
+
+FE --> User: Show "Report submitted"
+deactivate FE
+deactivate User
+
+@enduml

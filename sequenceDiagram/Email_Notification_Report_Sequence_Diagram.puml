@@ -1,0 +1,108 @@
+@startuml
+
+title Inventory Request and Reminder Sequence Diagram
+
+actor User
+
+participant "Frontend (Website)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "Controller" as C
+  participant "Inventory Service" as Service
+  participant "Messaging Service" as MessageService
+  participant "Eloquent ORM" as ORM
+end box
+
+participant "Email Service SMTP" as Email
+database "MariaDB Database" as DB
+
+== Inventory Request Response ==
+User -> FE: Submit inventory request
+activate User
+activate FE
+
+FE -> Apache: POST /borrowRequest
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> Service: createBorrowRequest()
+activate Service
+
+Service -> ORM: Check item availability
+activate ORM
+ORM -> DB: Query item status
+activate DB
+DB --> ORM: Availability result
+deactivate DB
+ORM --> Service: Available?
+deactivate ORM
+
+alt Item available
+    Service -> ORM: Save borrow request
+    activate ORM
+    ORM -> DB: Insert borrow request
+    activate DB
+    DB --> ORM: Request saved
+    deactivate DB
+    ORM --> Service: Request persisted
+    deactivate ORM
+
+    Service --> C: Request approved
+    C -> Email: Send approval email
+    activate Email
+    Email --> C: Email sent
+    deactivate Email
+
+else Item unavailable
+    Service --> C: Request rejected
+    C -> Email: Send rejection email
+    activate Email
+    Email --> C: Email sent
+    deactivate Email
+end
+
+deactivate Service
+C --> FE: Response
+deactivate C
+
+FE --> User: Display confirmation
+deactivate FE
+deactivate User
+
+== Message Reminder Email ==
+note over MessageService,Email: Triggered if user doesn't respond in 15 minutes
+
+activate C
+C -> MessageService: checkMessageTimeout()
+activate MessageService
+
+MessageService -> ORM: Check last message timestamp
+activate ORM
+ORM -> DB: Query latest message time
+activate DB
+DB --> ORM: Last message time
+deactivate DB
+ORM --> MessageService: Timestamp result
+deactivate ORM
+
+alt No response in 15 minutes
+    MessageService -> Email: Send reminder email
+    activate Email
+    Email --> MessageService: Reminder sent
+    deactivate Email
+else User already responded
+    note right of MessageService: No email sent
+end
+
+deactivate MessageService
+deactivate C
+
+@enduml

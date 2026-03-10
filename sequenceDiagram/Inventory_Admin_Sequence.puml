@@ -1,0 +1,246 @@
+@startuml
+
+title Inventory Admin Extended Capabilities Sequence Diagram
+
+actor "Inventory Admin" as Admin
+participant "Frontend Website" as Frontend
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "Controller" as C
+  participant "Inventory Service" as Service
+  participant "Eloquent ORM" as ORM
+end box
+
+database "MariaDB Database" as DB
+
+note right of Admin
+Inventory Admin can perform
+regular inventory user viewing actions,
+such as browsing and checking inventory.
+
+Borrow request actions are not included,
+since Inventory Admin manages inventory
+instead of requesting it.
+
+This diagram only shows
+additional administrative actions.
+end note
+
+== Update Inventory (Add / Delete Item) ==
+Admin -> Frontend: Add or delete inventory item
+activate Admin
+activate Frontend
+
+Frontend -> Apache: POST /admin/items/update
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> Service: updateInventory()
+activate Service
+
+Service -> ORM: Insert or delete item
+activate ORM
+ORM -> DB: Insert or delete inventory record
+activate DB
+DB --> ORM: Update success
+deactivate DB
+ORM --> Service: Update persisted
+deactivate ORM
+
+Service --> C: Update confirmation
+deactivate Service
+C --> Frontend: Response
+deactivate C
+
+Frontend --> Admin: Display update result
+deactivate Frontend
+deactivate Admin
+
+== Cancel Borrow or Special Request ==
+Admin -> Frontend: Cancel request
+activate Admin
+activate Frontend
+
+Frontend -> Apache: POST /admin/cancelRequest
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> Service: cancelRequest()
+activate Service
+
+Service -> ORM: Update request status [Cancelled]
+activate ORM
+ORM -> DB: Update request record
+activate DB
+DB --> ORM: Update success
+deactivate DB
+ORM --> Service: Status updated
+deactivate ORM
+
+Service --> C: Cancellation confirmation
+deactivate Service
+C --> Frontend: Response
+deactivate C
+
+Frontend --> Admin: Display confirmation
+deactivate Frontend
+deactivate Admin
+
+== View and Download Inventory Statistics ==
+Admin -> Frontend: Request statistics
+activate Admin
+activate Frontend
+
+Frontend -> Apache: GET /admin/statistics
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> Service: generateStatistics()
+activate Service
+
+Service -> ORM: Query usage data
+activate ORM
+ORM -> DB: Select inventory usage data
+activate DB
+DB --> ORM: Inventory statistics
+deactivate DB
+ORM --> Service: Statistics dataset
+deactivate ORM
+
+Service --> C: Statistics report
+deactivate Service
+C --> Frontend: Report data
+deactivate C
+
+Frontend --> Admin: Display / Download report
+deactivate Frontend
+deactivate Admin
+
+== Close Requests for Specific Day ==
+Admin -> Frontend: Close requests for date
+activate Admin
+activate Frontend
+
+Frontend -> Apache: POST /admin/closeDay
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> Service: closeRequestDay()
+activate Service
+
+Service -> ORM: Mark date as unavailable
+activate ORM
+ORM -> DB: Update request availability date
+activate DB
+DB --> ORM: Update success
+deactivate DB
+ORM --> Service: Date closed
+deactivate ORM
+
+Service --> C: Day closed confirmation
+deactivate Service
+C --> Frontend: Response
+deactivate C
+
+Frontend --> Admin: Display confirmation
+deactivate Frontend
+deactivate Admin
+
+== Search and Ban User ==
+Admin -> Frontend: Search for user
+activate Admin
+activate Frontend
+
+Frontend -> Apache: GET /admin/users?search
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> Service: searchUsers()
+activate Service
+
+Service -> ORM: Query users
+activate ORM
+ORM -> DB: Select matching users
+activate DB
+DB --> ORM: User list
+deactivate DB
+ORM --> Service: User collection
+deactivate ORM
+
+Service --> C: User list
+deactivate Service
+C --> Frontend: User results
+deactivate C
+
+Frontend --> Admin: Display users
+deactivate Frontend
+deactivate Admin
+
+Admin -> Frontend: Select user and ban
+activate Admin
+activate Frontend
+
+Frontend -> Apache: POST /admin/banUser
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> Service: banUser(userID)
+activate Service
+
+Service -> ORM: Update user status [Banned]
+activate ORM
+ORM -> DB: Update user record
+activate DB
+DB --> ORM: Update success
+deactivate DB
+ORM --> Service: Ban persisted
+deactivate ORM
+
+Service --> C: Ban confirmation
+deactivate Service
+C --> Frontend: Response
+deactivate C
+
+Frontend --> Admin: Display confirmation
+deactivate Frontend
+deactivate Admin
+
+@enduml
