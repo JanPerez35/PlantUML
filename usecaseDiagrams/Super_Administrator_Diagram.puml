@@ -1,0 +1,61 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+
+actor User
+actor "Inventory Administrator" as InventoryAdmin
+actor "Marketplace Administrator" as MarketplaceAdmin
+actor "Facility Administrator" as FacilityAdmin
+actor "Super Administrator" as SiteAdmin
+
+SiteAdmin --|> User
+SiteAdmin --|> InventoryAdmin
+SiteAdmin --|> MarketplaceAdmin
+SiteAdmin --|> FacilityAdmin
+
+rectangle MAIKINE {
+
+  
+    usecase "Log-In" as UC_Login
+    usecase "Log-Out" as UC_Logout
+     usecase "Restore user access" as UC_RestoreUser
+    usecase "Ban user access" as UC_BanUser
+    usecase "View access logs" as UC_ViewLogs
+    usecase "Manage user roles" as UC_ManageRoles
+    usecase "Edit operational costs" as UC_EditCost
+  
+  
+    usecase "Search access logs" as UC_SearchLogs
+    usecase "Download access logs CSV" as UC_DownloadLogs
+
+  
+    usecase "View users" as UC_ViewUsers
+    usecase "Assign role" as UC_AssignRole
+    usecase "Promote user role" as UC_PromoteRole
+    usecase "Demote user role" as UC_DemoteRole
+    usecase "Remove role" as UC_RemoveRole
+  
+}
+
+SiteAdmin --> UC_Login
+SiteAdmin --> UC_Logout
+SiteAdmin --> UC_ViewLogs
+SiteAdmin --> UC_ManageRoles
+SiteAdmin --> UC_EditCost
+SiteAdmin --> UC_RestoreUser
+SiteAdmin --> UC_BanUser
+
+UC_SearchLogs ..> UC_ViewLogs : <<extend>>
+UC_DownloadLogs ..> UC_ViewLogs : <<extend>>
+
+UC_ViewUsers ..> UC_ManageRoles : <<include>>
+UC_AssignRole ..> UC_ManageRoles : <<include>>
+UC_PromoteRole ..> UC_ManageRoles : <<include>>
+UC_DemoteRole ..> UC_ManageRoles : <<include>>
+UC_RemoveRole ..> UC_ManageRoles : <<include>>
+
+
+
+
+
+@enduml

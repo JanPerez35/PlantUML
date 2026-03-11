@@ -8,49 +8,56 @@ rectangle MAIKINE {
 
   usecase "Log-In" as UC_Login
   usecase "Log-Out" as UC_Logout
-  usecase "Access\nMarketplace" as UC_Marketplace
+
   usecase "Browse\nmarketplace" as UC_Browse
   usecase "Search users" as UC_SearchUsers
-  usecase "Add listing" as UC_AddListing
-  usecase "Delete listing" as UC_DeleteListing
-  usecase "Access\nMarketplace\nManagement" as UC_MarketMgmt
-  usecase "Review\nreported\naccounts" as UC_ReviewReports
+  usecase "Add user listing" as UC_AddListing
   usecase "Delete user\nlisting" as UC_DeleteUserListing
-  usecase "Ban user" as UC_BanUser
-  usecase "View posts" as UC_View
-  usecase "Review flagged report" as UC_ViewFlagged
-  usecase "View user profile" as UC_ViewProfile
-  usecase "Dismiss report" as UC_Dismiss
-  usecase "Resolve report" as UC_Resolve
-  usecase "View reviews" as UC_ViewReview
-  usecase "Filter posts" as UC_Filter
-  usecase "Report post" as UC_Report
   usecase "Chat with user" as UC_Chat
+  usecase "Report a post" as UC_Report
 
+  usecase "Review\nreported\naccounts" as UC_ReviewAccounts
+  usecase "Ban user" as UC_BanUser
+
+  usecase "View posts" as UC_View
+  usecase "Filter posts" as UC_Filter
+  usecase "Review flagged report" as UC_ViewFlagged
+  usecase "Resolve report" as UC_Resolve
+  usecase "Dismiss report" as UC_Dismiss
+  usecase "View user profile" as UC_ViewProfile
+  usecase "View reviews" as UC_ViewReview
 }
 
 MarketplaceAdmin --> UC_Login
 MarketplaceAdmin --> UC_Logout
 
-UC_Login ..> UC_Marketplace : <<include>>
-UC_Login ..> UC_MarketMgmt : <<include>>
+MarketplaceAdmin --> UC_Browse
+MarketplaceAdmin --> UC_SearchUsers
+MarketplaceAdmin --> UC_AddListing
+MarketplaceAdmin --> UC_Chat
+MarketplaceAdmin --> UC_Report
+MarketplaceAdmin --> UC_BanUser
 
-UC_Marketplace ..> UC_Browse : <<include>>
-UC_Marketplace ..> UC_SearchUsers : <<include>>
-UC_Marketplace ..> UC_AddListing : <<include>>
-UC_Marketplace ..> UC_DeleteListing : <<include>>
-UC_Marketplace ..> UC_Filter : <<include>>
-UC_Marketplace ..> UC_Report : <<include>>
-UC_Marketplace ..> UC_Chat : <<include>>
+MarketplaceAdmin --> UC_View
+MarketplaceAdmin --> UC_ReviewAccounts
+MarketplaceAdmin --> UC_ViewFlagged
+MarketplaceAdmin --> UC_ViewProfile
+MarketplaceAdmin --> UC_DeleteUserListing
 
-UC_MarketMgmt ..> UC_ReviewReports : <<include>>
-UC_MarketMgmt ..> UC_DeleteUserListing : <<include>>
-UC_MarketMgmt ..> UC_BanUser : <<include>>
-UC_MarketMgmt ..> UC_View : <<include>>
-UC_MarketMgmt ..> UC_ViewProfile: <<include>>
-UC_MarketMgmt ..> UC_ViewFlagged: <<include>>
-UC_MarketMgmt ..> UC_Dismiss: <<include>>
-UC_MarketMgmt ..> UC_Resolve: <<include>>
-UC_MarketMgmt ..> UC_ViewReview: <<include>>
+UC_Filter ..> UC_View : <<extend>>
+UC_ViewFlagged ..> UC_View : <<extend>>
+
+UC_Resolve ..> UC_ViewFlagged : <<extend>>
+UC_Dismiss ..> UC_ViewFlagged : <<extend>>
+
+UC_ViewReview ..> UC_ViewProfile : <<extend>>
+
+' layout helpers
+UC_View -[hidden]-> UC_Filter
+UC_View -[hidden]-> UC_ViewFlagged
+UC_ViewFlagged -[hidden]-> UC_Resolve
+UC_Resolve -[hidden]-> UC_Dismiss
+UC_ViewFlagged -[hidden]-> UC_ViewProfile
+UC_ViewProfile -[hidden]-> UC_ViewReview
 
 @enduml

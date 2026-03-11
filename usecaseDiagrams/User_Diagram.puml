@@ -6,71 +6,84 @@ actor User
 
 rectangle MAIKINE {
 
+ 
   usecase "Log-in" as UC_Login
+  usecase "Logout" as UC_Logout
 
-
-  usecase "Access Marketplace" as UC_Market
-  usecase "Chat with seller" as UC_Chat
-  usecase "Report account" as UC_Report
-  usecase "List equipment for sale" as UC_List
+ 
   usecase "Browse Marketplace" as UC_BrowseMP
-  usecase "Delete own listing" as UC_DeleteList
-  usecase "Rate account" as UC_Rate
-  usecase "Search items"  as UC_Search
+
+
+  usecase "Search items" as UC_Search
   usecase "Filter search" as UC_Filter
+  usecase "View a listing" as UC_Listing
+  usecase "Chat with seller" as UC_Chat
+  usecase "Rate account" as UC_Rate
+  usecase "Report account" as UC_Report
+  usecase "Receive unread chat email" as UC_EmailChat
+  usecase "List equipment for sale" as UC_List
+  usecase "Delete own listing" as UC_DeleteList
 
-  usecase "Access Profile" as UC_Profile
-  usecase "View listing" as UC_View
-  usecase "Delete listing" as UC_Delete
-  usecase "View chats" as UC_ViewChat
-  usecase "View borrow requests" as UC_BorrowRequest
-  usecase " View reviews" as UC_Review
+  
+  usecase "Browse Department Kinventory" as UC_BrowseIN
+  usecase "Request sport equipment for lending" as UC_Request
 
-  usecase "Access Kinventory" as UC_Lending
-  usecase "Browse department inventory" as UC_Browse
-  usecase "Request sport equipment" as UC_Request
+ 
   usecase "Search for equipment" as UC_EquipSearch
   usecase "Filter equipment" as UC_EquipFilter
+  usecase "Receive equipment response email" as UC_EmailResponse
 
-  usecase "Receive email" as UC_Email
-  usecase "Logout" as UC_Logout
+ 
+  usecase "View own listing/sales" as UC_View
+  usecase "View own chats" as UC_ViewChat
+  usecase "View own borrow requests" as UC_BorrowRequest
+  usecase "View own reviews/ratings" as UC_Review
+
+  usecase "Read FAQ" as UC_ReadFAQ
+  usecase "Read contact information" as UC_ReadContact
 }
+
 
 User --> UC_Login
 User --> UC_Logout
+User --> UC_BrowseMP
+User --> UC_List
+User --> UC_DeleteList
+User --> UC_BrowseIN
+User --> UC_Request
+User --> UC_View
+User --> UC_ViewChat
+User --> UC_BorrowRequest
+User --> UC_Review
+User --> UC_ReadFAQ
+User --> UC_ReadContact
 
 
-UC_Login ..> UC_Market : <<include>>
-UC_Login ..> UC_Profile : <<include>>
-UC_Login ..> UC_Lending : <<include>>
+UC_Search ..> UC_BrowseMP : <<extend>>
+UC_Filter ..> UC_BrowseMP : <<extend>>
+UC_Listing ..> UC_BrowseMP : <<extend>>
+
+UC_Chat ..> UC_Listing : <<extend>>
+UC_Rate ..> UC_Listing : <<extend>>
+UC_Report ..> UC_Listing : <<extend>>
+UC_EmailChat ..> UC_Chat : <<extend>>
+
+UC_EquipSearch ..> UC_BrowseIN : <<extend>>
+UC_EquipFilter ..> UC_BrowseIN : <<extend>>
+UC_EmailResponse ..> UC_Request : <<extend>>
 
 
-UC_Market ..> UC_Chat : <<include>>
+UC_BrowseMP -[hidden]-> UC_Search
+UC_Search -[hidden]-> UC_Filter
+UC_Filter -[hidden]-> UC_Listing
+UC_Listing -[hidden]-> UC_Chat
+UC_Chat -[hidden]-> UC_Rate
+UC_Rate -[hidden]-> UC_Report
+UC_Report -[hidden]-> UC_EmailChat
 
-
-UC_Market ..> UC_Report : <<include>>
-UC_Market ..> UC_List : <<include>>
-UC_Market ..> UC_BrowseMP: <<include>>
-UC_Market ..> UC_DeleteList: <<include>>
-UC_Market ..> UC_Rate: <<include>>
-UC_Market ..> UC_Search: <<include>>
-UC_Market ..> UC_Filter: <<include>>
-
-
-UC_Profile ..> UC_View : <<include>>
-UC_Profile ..> UC_Delete : <<include>>
-UC_Profile ..> UC_ViewChat: <<include>>
-UC_Profile ..> UC_BorrowRequest: <<include>>
-UC_Profile ..> UC_Review: <<include>>
-
-UC_Lending ..> UC_Browse : <<include>>
-UC_Lending ..> UC_Request : <<include>>
-UC_Lending ..> UC_EquipSearch: <<include>>
-UC_Lending ..> UC_EquipFilter: <<include>>
-UC_Email ..> UC_Request: <<extends>>
-
-
-
-UC_Chat <.. UC_Email : <<extend>>
+UC_BrowseIN -[hidden]-> UC_EquipSearch
+UC_EquipSearch -[hidden]-> UC_EquipFilter
+UC_EquipFilter -[hidden]-> UC_Request
+UC_Request -[hidden]-> UC_EmailResponse
 
 @enduml
