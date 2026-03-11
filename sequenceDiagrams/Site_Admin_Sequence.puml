@@ -2,7 +2,7 @@
 
 title Site Administration Extended Control Sequence Diagram
 
-actor "Site Admin" as Admin
+actor "Super Admin" as Admin
 
 participant "Frontend (Web Portal)" as FE
 participant "Apache\n(HTTP Server)" as Apache
