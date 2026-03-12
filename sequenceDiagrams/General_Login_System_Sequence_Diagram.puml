@@ -1,6 +1,6 @@
 @startuml
 
-title User Login Authentication Sequence Diagram
+title Ideal User Login Authentication Sequence Diagram
 
 actor "User (Any)" as User
 

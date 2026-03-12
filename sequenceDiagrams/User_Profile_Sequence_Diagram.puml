@@ -1,6 +1,6 @@
 @startuml
 
-title User Profile Sequence Diagram
+title Ideal User Profile Sequence Diagram
 
 actor User
 

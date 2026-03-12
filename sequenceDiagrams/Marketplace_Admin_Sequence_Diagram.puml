@@ -1,14 +1,14 @@
 @startuml
 
-title Marketplace Admin Extended Capabilities Sequence Diagram
+title Ideal Marketplace Admin Control Sequence Diagram
 
 actor "Marketplace Admin" as Admin
 
 note right of Admin
 Marketplace Admin inherits all
-Marketplace User capabilities:
+Marketplace specific User capabilities:
 
-It is assumed the Marketetplace Admin is
+It is assumed the Marketplace Admin is
 authenticated/authorized.
 
 This diagram only shows

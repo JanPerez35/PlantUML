@@ -1,6 +1,6 @@
 @startuml
 
-title Email Reminder Sequence Diagram
+title Ideal Email Reminder Sequence Diagram
 
 actor User
 

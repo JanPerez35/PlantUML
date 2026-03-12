@@ -1,6 +1,6 @@
 @startuml
 
-title User Search and Profile Interaction Sequence Diagram
+title Ideal User Search and Profile Interaction Sequence Diagram
 
 actor User
 

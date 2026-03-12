@@ -1,6 +1,6 @@
 @startuml
 
-title User Inventory Item Request Sequence Diagram
+title Ideal User Inventory Item Request Sequence Diagram
 
 actor User
 participant "Frontend Website" as Frontend

@@ -1,6 +1,6 @@
 @startuml
 
-title Super Admin Extended Control Sequence Diagram
+title Ideal Super Admin Control Sequence Diagram
 
 actor "Super Admin" as Admin
 
