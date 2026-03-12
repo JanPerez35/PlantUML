@@ -13,8 +13,9 @@ rectangle MAIKINE {
   usecase "Remove\nfrom inventory" as UC_RemoveInventory
   usecase "Approve\nrequests" as UC_ApproveRequests
   usecase "Deny\nrequests" as UC_DenyRequests
+  usecase "View invetory statistics" as UC_ViewStatisitcs
   usecase "View active\nborrowers" as UC_ViewBorrowers
-  usecase "Access\nDepartment\nLending" as UC_DepLending
+  usecase "Access\nDepartment\nInventory" as UC_DepLending
   usecase "Ban user" as UC_BanUser
   usecase "Browse\ninventory" as UC_BrowseInventory
   usecase "View Inventory" as UC_View
@@ -27,25 +28,31 @@ rectangle MAIKINE {
 InventoryAdmin --> UC_Login
 InventoryAdmin --> UC_Logout
 
-UC_Login ..> UC_InventoryMgmt : <<include>>
-UC_Login ..> UC_DepLending : <<include>>
+UC_Login <.. UC_InventoryMgmt : <<extend>>
+UC_Login <.. UC_DepLending : <<extend>>
 
-UC_InventoryMgmt ..> UC_AddInventory : <<include>>
-UC_InventoryMgmt ..> UC_RemoveInventory : <<include>>
-UC_InventoryMgmt ..> UC_ApproveRequests : <<include>>
-UC_InventoryMgmt ..> UC_DenyRequests : <<include>>
-UC_InventoryMgmt ..> UC_ViewBorrowers : <<include>>
-UC_InventoryMgmt ..> UC_View: <<include>>
-UC_InventoryMgmt ..> UC_ViewRequest <<include>>
-UC_InventoryMgmt ..> UC_BanUser : <<include>>
+UC_InventoryMgmt <.. UC_AddInventory : <<extend>>
+UC_InventoryMgmt <.. UC_RemoveInventory : <<extend>>
+UC_InventoryMgmt <.. UC_ApproveRequests : <<extend>>
+UC_InventoryMgmt <.. UC_DenyRequests : <<extend>>
+UC_InventoryMgmt <.. UC_ViewBorrowers : <<extend>>
+UC_InventoryMgmt <.. UC_View: <<extend>>
+UC_InventoryMgmt <.. UC_ViewRequest: <<extend>>
+UC_InventoryMgmt <.. UC_BanUser : <<extend>>
+UC_InventoryMgmt <.. UC_ViewStatisitcs : <<extend>>
 
-UC_AddInventory ..> UC_UpdateInventory : <<include>>
-UC_RemoveInventory ..> UC_UpdateInventory : <<include>>
-UC_ApproveRequests ..> UC_RemoveInventory : <<include>>
+UC_AddInventory <.. UC_UpdateInventory : <<extend>>
+UC_RemoveInventory <.. UC_UpdateInventory : <<extend>>
+UC_ApproveRequests <.. UC_RemoveInventory : <<extend>>
 
 
-UC_DepLending ..> UC_BrowseInventory : <<include>>
-UC_DepLending ..> UC_Search : <<include>>
-UC_DepLending ..> UC_Filter :: <<include>>
+UC_DepLending <.. UC_BrowseInventory : <<extend>>
+UC_DepLending <.. UC_Search : <<extend>>
+UC_DepLending <.. UC_Filter :: <<extend>>
+
+note left of UC_Logout
+Available from any
+authenticated state
+end note
 
 @enduml

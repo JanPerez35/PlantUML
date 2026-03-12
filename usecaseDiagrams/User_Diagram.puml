@@ -20,18 +20,15 @@ rectangle MAIKINE {
   usecase "Chat with seller" as UC_Chat
   usecase "Rate account" as UC_Rate
   usecase "Report account" as UC_Report
-  usecase "Receive unread chat email" as UC_EmailChat
+  usecase "Receive unread chat email\n after 15 min" as UC_EmailChat
   usecase "List equipment for sale" as UC_List
   usecase "Delete own listing" as UC_DeleteList
 
   
   usecase "Browse Department Kinventory" as UC_BrowseIN
-  usecase "Request sport equipment for lending" as UC_Request
-
  
   usecase "Search for equipment" as UC_EquipSearch
   usecase "Filter equipment" as UC_EquipFilter
-  usecase "Receive equipment response email" as UC_EmailResponse
 
  
   usecase "View own listing/sales" as UC_View
@@ -41,22 +38,24 @@ rectangle MAIKINE {
 
   usecase "Read FAQ" as UC_ReadFAQ
   usecase "Read contact information" as UC_ReadContact
-}
 
+  usecase "Request sport equipment for lending" as UC_Request
+  usecase "Receive equipment response email" as UC_EmailResponse
+}
 
 User --> UC_Login
 User --> UC_Logout
-User --> UC_BrowseMP
-User --> UC_List
-User --> UC_DeleteList
-User --> UC_BrowseIN
-User --> UC_Request
-User --> UC_View
-User --> UC_ViewChat
-User --> UC_BorrowRequest
-User --> UC_Review
-User --> UC_ReadFAQ
-User --> UC_ReadContact
+UC_Login <.. UC_BrowseMP : <<extend>>
+UC_Login <.. UC_List : <<extend>>
+UC_Login <.. UC_DeleteList : <<extend>>
+UC_Login <.. UC_BrowseIN : <<extend>>
+UC_Login <.. UC_View : <<extend>>
+UC_Login <.. UC_ViewChat : <<extend>>
+UC_Login <.. UC_BorrowRequest : <<extend>>
+UC_Login <.. UC_ReadContact : <<extend>>
+UC_Login <.. UC_Review : <<extend>>
+UC_Login <.. UC_ReadFAQ : <<extend>>
+
 
 
 UC_Search ..> UC_BrowseMP : <<extend>>
@@ -71,6 +70,7 @@ UC_EmailChat ..> UC_Chat : <<extend>>
 UC_EquipSearch ..> UC_BrowseIN : <<extend>>
 UC_EquipFilter ..> UC_BrowseIN : <<extend>>
 UC_EmailResponse ..> UC_Request : <<extend>>
+ UC_BrowseIN <.. UC_Request : <<extend>>
 
 
 UC_BrowseMP -[hidden]-> UC_Search
@@ -85,5 +85,11 @@ UC_BrowseIN -[hidden]-> UC_EquipSearch
 UC_EquipSearch -[hidden]-> UC_EquipFilter
 UC_EquipFilter -[hidden]-> UC_Request
 UC_Request -[hidden]-> UC_EmailResponse
+
+note left of UC_Logout
+Available from any
+authenticated state
+end note
+
 
 @enduml

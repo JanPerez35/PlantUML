@@ -20,5 +20,5 @@ else (No)
   :Notify user of rescheduled request date;
 endif
 
-stop
+end
 @enduml
