@@ -17,8 +17,10 @@ end box
 database "MariaDB Database" as DB
 
 note right of User
-It is assumed the user is
-authenticated/authorized
+IMPORTANT: This sequence assumes normal system operation. If a failure
+occurs at any layer, the system returns an error message
+and prompts the user to retry. It is also assumed the User is
+authenticated/authorized.
 end note
 
 == Search Users ==

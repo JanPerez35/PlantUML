@@ -1,6 +1,6 @@
 @startuml
 
-title Inventory Admin Extended Capabilities Sequence Diagram
+title Inventory Admin Sequence Diagram
 
 actor "Inventory Admin" as Admin
 participant "Frontend Website" as Frontend
@@ -27,6 +27,7 @@ This diagram only shows
 additional administrative actions.
 end note
 
+
 == Update Inventory (Add / Delete Item) ==
 Admin -> Frontend: Add or delete inventory item
 activate Admin
@@ -36,7 +37,11 @@ Frontend -> Apache: POST /admin/items/update
 activate Apache
 Apache -> MW: Forward request
 deactivate Apache
-
+note left of DB
+IMPORTANT: This sequence assumes normal system operation. If a failure
+occurs at any layer, the system returns an error message
+and prompts the user to retry.
+end note
 activate MW
 MW -> C: Pass validated request
 deactivate MW
@@ -132,42 +137,6 @@ C --> Frontend: Report data
 deactivate C
 
 Frontend --> Admin: Display / Download report
-deactivate Frontend
-deactivate Admin
-
-== Close Requests for Specific Day ==
-Admin -> Frontend: Close requests for date
-activate Admin
-activate Frontend
-
-Frontend -> Apache: POST /admin/closeDay
-activate Apache
-Apache -> MW: Forward request
-deactivate Apache
-
-activate MW
-MW -> C: Pass validated request
-deactivate MW
-
-activate C
-C -> Service: closeRequestDay()
-activate Service
-
-Service -> ORM: Mark date as unavailable
-activate ORM
-ORM -> DB: Update request availability date
-activate DB
-DB --> ORM: Update success
-deactivate DB
-ORM --> Service: Date closed
-deactivate ORM
-
-Service --> C: Day closed confirmation
-deactivate Service
-C --> Frontend: Response
-deactivate C
-
-Frontend --> Admin: Display confirmation
 deactivate Frontend
 deactivate Admin
 
