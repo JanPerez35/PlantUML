@@ -14,7 +14,7 @@ start
 |System|
 :Apply search and filter criteria;
 
-if (Matching listings found?) then (Yes)
+if (Matching posts found?) then (Yes)
   :Display filtered marketplace results;
 else (No)
   :Display no matching results message;
@@ -25,7 +25,7 @@ if (Modify search or filters?) then (Yes)
   :Update search term or filters;
   |System|
   :Apply updated criteria;
-  if (Matching listings found?) then (Yes)
+  if (Matching posts found?) then (Yes)
     :Display filtered marketplace results;
   else (No)
     :Display no matching results message;
