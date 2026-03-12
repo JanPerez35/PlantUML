@@ -8,8 +8,8 @@ note right of Admin
 Marketplace Admin inherits all
 Marketplace User capabilities:
 
-It is assumed the Market Admin is
-authenticated/authorized
+It is assumed the Marketetplace Admin is
+authenticated/authorized.
 
 This diagram only shows
 additional administrative actions.
@@ -32,7 +32,12 @@ database "MariaDB Database" as DB
 Admin -> FE: Select any post and delete
 activate Admin
 activate FE
-
+note left of DB
+IMPORTANT: This sequence assumes normal system operation. If a failure
+occurs at any layer, the system returns an error message
+and prompts the user to retry. It is also assumed the Marketplace Admin is
+authenticated/authorized.
+end note
 FE -> Apache: DELETE /admin/deletePost(postId)
 activate Apache
 Apache -> MW: Forward request

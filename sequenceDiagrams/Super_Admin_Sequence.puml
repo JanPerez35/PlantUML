@@ -1,6 +1,6 @@
 @startuml
 
-title Site Administration Extended Control Sequence Diagram
+title Super Admin Extended Control Sequence Diagram
 
 actor "Super Admin" as Admin
 
@@ -17,12 +17,12 @@ end box
 database "MariaDB Database" as DB
 
 note right of Admin
-Site Admin has full system privileges. It is assumed the user is
-authenticated/authorized.
+Super Admin has full system privileges.
 They can perform all actions available to:
 - Inventory Admin
 - Marketplace Admin
 - Facility Admin
+- User
 Those workflows are not repeated here.
 end note
 
@@ -31,6 +31,13 @@ end note
 Admin -> FE: Search user and assign/update/remove role
 activate Admin
 activate FE
+
+note left of DB
+IMPORTANT: This sequence assumes normal system operation. If a failure
+occurs at any layer, the system returns an error message
+and prompts the user to retry. It is also assumed the Super Admin is
+authenticated/authorized.
+end note
 
 FE -> Apache: POST /admin/updateUserRole
 activate Apache
@@ -73,12 +80,12 @@ deactivate FE
 deactivate Admin
 
 
-== Modify Facility Cost Equation ==
+== Modify Facility Cost Certificate ==
 Admin -> FE: Update cost report formula
 activate Admin
 activate FE
 
-FE -> Apache: POST /admin/updateCostFormula
+FE -> Apache: POST /admin/updateCostCertificate
 activate Apache
 Apache -> MW: Forward request
 deactivate Apache
@@ -88,16 +95,16 @@ MW -> C: Pass validated request
 deactivate MW
 
 activate C
-C -> Service: updateCostFormula(newEquation)
+C -> Service: updateCostCertificate
 activate Service
 
-Service -> ORM: Store new formula
+Service -> ORM: Store new Certificate
 activate ORM
-ORM -> DB: Update formula configuration
+ORM -> DB: Update certificate configuration
 activate DB
-DB --> ORM: Formula saved
+DB --> ORM: Certificate saved
 deactivate DB
-ORM --> Service: Formula persisted
+ORM --> Service: Certificate persisted
 deactivate ORM
 
 Service --> C: Update confirmed
@@ -105,7 +112,53 @@ deactivate Service
 C --> FE: Display confirmation
 deactivate C
 
-FE --> Admin: Show "Facility cost equation updated"
+FE --> Admin: Show "Cost Certificate updated"
+deactivate FE
+deactivate Admin
+
+
+== Ban / Unban User ==
+Admin -> FE: Ban or Unban selected user
+activate Admin
+activate FE
+
+FE -> Apache: POST /admin/updateUserStatus
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> Service: updateUserStatus(userId, status)
+activate Service
+
+Service -> ORM: Query user
+activate ORM
+ORM -> DB: Select user record
+activate DB
+DB --> ORM: User found
+deactivate DB
+ORM --> Service: User entity
+deactivate ORM
+
+Service -> ORM: Update user status (banned/unbanned)
+activate ORM
+ORM -> DB: Update user status
+activate DB
+DB --> ORM: Status updated
+deactivate DB
+ORM --> Service: Status persisted
+deactivate ORM
+
+Service --> C: Status update confirmed
+deactivate Service
+C --> FE: Display confirmation
+deactivate C
+
+FE --> Admin: Show "User status updated"
 deactivate FE
 deactivate Admin
 

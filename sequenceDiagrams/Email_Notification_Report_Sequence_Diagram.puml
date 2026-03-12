@@ -19,9 +19,12 @@ participant "Email Service SMTP" as Email
 database "MariaDB Database" as DB
 
 note right of User
-It is assumed the user is
-authenticated/authorized
+IMPORTANT: This sequence assumes normal system operation. If a failure
+occurs at any layer, the system returns an error message
+and prompts the user to retry. It is also assumed the user is
+authenticated/authorized.
 end note
+
 
 == Inventory Request Response ==
 User -> FE: Submit inventory request
@@ -82,8 +85,22 @@ FE --> User: Display confirmation
 deactivate FE
 deactivate User
 
+
 == Message Reminder Email ==
 note over MessageService,Email: Triggered if user doesn't respond in 15 minutes
+
+User -> FE: Open messages / check request status
+activate User
+activate FE
+
+FE -> Apache: GET /messages
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
 
 activate C
 C -> MessageService: checkMessageTimeout()
@@ -108,6 +125,51 @@ else User already responded
 end
 
 deactivate MessageService
+C --> FE: Response
 deactivate C
+
+FE --> User: Display message status
+deactivate FE
+deactivate User
+
+
+== User Ban Notification Email ==
+
+note over C,Email: Triggered immediately when a user account is banned
+
+User -> FE: Attempt login or access system
+activate User
+activate FE
+
+FE -> Apache: POST /login
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> ORM: Check user status
+activate ORM
+ORM -> DB: Query user record
+activate DB
+DB --> ORM: User status = banned
+deactivate DB
+ORM --> C: Status returned
+deactivate ORM
+
+C -> Email: Send ban notification email
+activate Email
+Email --> C: Ban email sent
+deactivate Email
+
+C --> FE: Access denied (user banned)
+deactivate C
+
+FE --> User: Display ban message
+deactivate FE
+deactivate User
 
 @enduml

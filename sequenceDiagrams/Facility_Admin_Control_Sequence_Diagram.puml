@@ -15,19 +15,21 @@ box "Laravel Application" #LightGreen
 end box
 
 note right of Admin
-It is assumed the Facility
-Admin is authenticated/authorized
+IMPORTANT: This sequence assumes normal system operation. If a failure
+occurs at any layer, the system returns an error message
+and prompts the user to retry. It is also assumed the Facility Admin is
+authenticated/authorized.
 end note
 
 participant "EventFlow API" as EventFlow
 database "MariaDB Database" as DB
 
-== Adding a Cost ==
+== Adding Event ==
 Admin -> FE: Enter cost details (description, amount, date)
 activate Admin
 activate FE
 
-FE -> Apache: POST /addCost
+FE -> Apache: POST /addEvent
 activate Apache
 Apache -> MW: Forward request
 deactivate Apache
@@ -37,26 +39,64 @@ MW -> C: Pass validated request
 deactivate MW
 
 activate C
-C -> Service: addCost(cost data)
+C -> Service: addEvent(cost data)
 activate Service
 
-Service -> ORM: Save new cost entry
+Service -> ORM: Save new event entry
 activate ORM
-ORM -> DB: Insert cost record
+ORM -> DB: Insert event record
 activate DB
-DB --> ORM: Cost saved
+DB --> ORM: Event saved
 deactivate DB
-ORM --> Service: Cost persisted
+ORM --> Service: Event persisted
 deactivate ORM
 
-Service --> C: Confirm cost creation
+Service --> C: Confirm event creation
 deactivate Service
 C --> FE: Display confirmation
 deactivate C
 
-FE --> Admin: Show "Cost added successfully"
+FE --> Admin: Show "Event added successfully"
 deactivate FE
 deactivate Admin
+
+
+== Deleting Event ==
+Admin -> FE: Select event and click "Delete"
+activate Admin
+activate FE
+
+FE -> Apache: DELETE /deleteEvent/{eventId}
+activate Apache
+Apache -> MW: Forward request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> Service: deleteEvent(eventId)
+activate Service
+
+Service -> ORM: Remove event entry
+activate ORM
+ORM -> DB: Delete event record
+activate DB
+DB --> ORM: Deletion confirmed
+deactivate DB
+ORM --> Service: Event removed
+deactivate ORM
+
+Service --> C: Confirm deletion
+deactivate Service
+C --> FE: Display deletion confirmation
+deactivate C
+
+FE --> Admin: Show "Cost deleted successfully"
+deactivate FE
+deactivate Admin
+
 
 == Pulling Data from EventFlow API ==
 Admin -> FE: Request external data
@@ -99,41 +139,6 @@ FE --> Admin: Show event data
 deactivate FE
 deactivate Admin
 
-== Generating a Report ==
-Admin -> FE: Generate report (select format: CSV/PDF)
-activate Admin
-activate FE
-
-FE -> Apache: POST /generateReport
-activate Apache
-Apache -> MW: Forward request
-deactivate Apache
-
-activate MW
-MW -> C: Pass validated request
-deactivate MW
-
-activate C
-C -> Service: generateReport(format)
-activate Service
-
-Service -> ORM: Query costs and imported data
-activate ORM
-ORM -> DB: Select report dataset
-activate DB
-DB --> ORM: Report data
-deactivate DB
-ORM --> Service: Dataset returned
-deactivate ORM
-
-Service --> C: Prepare report
-deactivate Service
-C --> FE: Report ready for download
-deactivate C
-
-FE --> Admin: Show "Report ready"
-deactivate FE
-deactivate Admin
 
 == Downloading Report ==
 Admin -> FE: Download report
@@ -153,10 +158,22 @@ activate C
 C -> Service: getReport()
 activate Service
 
-Service --> C: Return report file (CSV/PDF)
+Service -> ORM: Query costs and imported data
+activate ORM
+ORM -> DB: Select report from database
+activate DB
+DB --> ORM: Report file
+deactivate DB
+ORM --> Service: Report returned
+deactivate ORM
+
+Service --> C: Return report (CSV/PDF)
 deactivate Service
-C --> FE: Deliver report file
-deactivate C
+C --> FE: Report ready for download
+
+deactivate Service
+C --> FE: Deliver report
+deactivate C 
 
 FE --> Admin: File downloaded
 deactivate FE

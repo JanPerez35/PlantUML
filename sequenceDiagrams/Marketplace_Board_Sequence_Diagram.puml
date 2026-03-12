@@ -1,6 +1,6 @@
 @startuml
 
-title Marketplace User Interaction Sequence Diagram
+title Market User Interaction Sequence Diagram
 
 actor User
 
@@ -18,8 +18,10 @@ end box
 database "MariaDB Database" as DB
 
 note right of User
-It is assumed the user is
-authenticated/authorized
+IMPORTANT: This sequence assumes normal system operation. If a failure
+occurs at any layer, the system returns an error message
+and prompts the user to retry. It is also assumed the user is
+authenticated/authorized.
 end note
 
 == Viewing Posts ==
@@ -157,7 +159,7 @@ MessageService -> ORM: Check existing chat for this post
 activate ORM
 ORM -> DB: Query chat by post and users
 activate DB
-DB --> ORM: Chat exists?
+DB --> ORM: Chat validation
 deactivate DB
 ORM --> MessageService: Chat lookup result
 deactivate ORM
@@ -191,7 +193,7 @@ else New chat
     deactivate ORM
 end
 
-MessageService --> C: Message saved
+MessageService --> C: Message validated
 deactivate MessageService
 C --> FE: Confirm delivery
 deactivate C

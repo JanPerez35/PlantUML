@@ -1,6 +1,6 @@
 @startuml
 
-title User Post, Message, and Request Management Sequence Diagram
+title User Profile Sequence Diagram
 
 actor User
 
@@ -18,8 +18,10 @@ end box
 database "MariaDB Database" as DB
 
 note right of User
-It is assumed the user is
-authenticated/authorized
+IMPORTANT: This sequence assumes normal system operation. If a failure
+occurs at any layer, the system returns an error message
+and prompts the user to retry. It is also assumed the User is
+authenticated/authorized.
 end note
 
 == View User Posts ==
@@ -155,6 +157,43 @@ C --> FE: Display requests
 deactivate C
 
 FE --> User: Show request statuses
+deactivate FE
+deactivate User
+
+== Cancel Borrow Request ==
+User -> FE: Click "Cancel Request"
+activate User
+activate FE
+
+FE -> Apache: DELETE /borrowRequest/{requestId}
+activate Apache
+Apache -> MW: Forward cancel request
+deactivate Apache
+
+activate MW
+MW -> C: Pass validated request
+deactivate MW
+
+activate C
+C -> Service: cancelBorrowRequest(requestId)
+activate Service
+
+Service -> ORM: Update request status to "cancelled"
+activate ORM
+ORM -> DB: Update borrow request
+activate DB
+DB --> ORM: Cancellation confirmed
+deactivate DB
+
+ORM --> Service: Request updated
+deactivate ORM
+
+Service --> C: Confirm cancellation
+deactivate Service
+C --> FE: Cancellation successful
+deactivate C
+
+FE --> User: Display cancellation confirmation
 deactivate FE
 deactivate User
 

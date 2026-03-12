@@ -11,13 +11,20 @@ box "Laravel Application" #LightGreen
   participant "Middleware" as MW
   participant "Controller" as C
   participant "SAML Authentication Service" as S
+  participant "Role Service" as RS
   participant "Eloquent ORM" as ORM
 end box
+
+note right of User
+IMPORTANT: This sequence assumes normal system operation. If a failure
+occurs at any layer, the system returns an error message
+and prompts the user to retry. 
+end note
 
 participant "UPR Identity Provider\n(UPRM Auth Server)" as IdP
 database "MariaDB Database" as DB
 loop
-User -> FE: Click Login option
+User -> FE: Click Login (UPRM) option
 activate FE
 
 FE -> Apache: Send login request
@@ -40,7 +47,7 @@ activate IdP
 IdP --> User: Show UPR login page
 activate User
 
-User -> IdP: Enter UPR credentials
+User -> IdP: Enter UPRM credentials
 deactivate User
 
 IdP -> IdP: Verify credentials
@@ -49,18 +56,25 @@ deactivate IdP
 
 S -> S: Validate SAML assertion
 
-S -> ORM: Check or assign user role
-activate ORM
+
+alt User Registered
+
+
+    S --> C: Authenticated user 
+activate C
+ activate ORM
 ORM -> DB: Query user / role data
 activate DB
-DB --> ORM: User role result
-deactivate DB
-ORM --> S: Role lookup result
-deactivate ORM
 
-alt Role found
-    S --> C: Authenticated user + role
-    activate C
+
+  C -> RS: Check user role
+  activate RS
+RS-> ORM: Request Role
+  deactivate RS
+
+deactivate ORM
+    DB --> C: User role result
+deactivate DB
     C --> MW: Login success response
     deactivate C
 
@@ -78,6 +92,7 @@ alt Role found
 
 else User not registered
     S --> C: Access denied
+    deactivate S
     activate C
     C --> MW: Denial response
     deactivate C
@@ -95,7 +110,6 @@ else User not registered
     deactivate User
 end
 
-deactivate S
 deactivate FE
 end
 
