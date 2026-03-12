@@ -1,7 +1,7 @@
 @startuml
 title Super Admin Role Management
 
-|Super Admin|
+|Super Administrator|
 start
 :Log into system;
 :Open User Management;

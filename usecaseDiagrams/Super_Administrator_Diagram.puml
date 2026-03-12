@@ -8,23 +8,23 @@ actor "Marketplace Administrator" as MarketplaceAdmin
 actor "Facility Administrator" as FacilityAdmin
 actor "Super Administrator" as SiteAdmin
 
-SiteAdmin --|> User
-SiteAdmin --|> InventoryAdmin
-SiteAdmin --|> MarketplaceAdmin
-SiteAdmin --|> FacilityAdmin
+SiteAdmin <|-- User
+SiteAdmin <|-- InventoryAdmin
+SiteAdmin <|-- MarketplaceAdmin
+SiteAdmin <|-- FacilityAdmin
 
 rectangle MAIKINE {
 
   
-    usecase "Log-In" as UC_Login
-    usecase "Log-Out" as UC_Logout
-    usecase "Restore user access" as UC_RestoreUser
+    usecase "Login" as UC_Login
+    usecase "Log out" as UC_Logout
+    usecase "Restore user account" as UC_RestoreUser
     usecase "Ban user access" as UC_BanUser
     usecase "View access logs" as UC_ViewLogs
     usecase "Manage user roles" as UC_ManageRoles
     usecase "Edit operational costs" as UC_EditCost
   
-  
+    
     usecase "Filter access logs" as UC_FilterLogs
     usecase "Search access logs" as UC_SearchLogs
     usecase "Download access logs CSV" as UC_DownloadLogs
@@ -34,33 +34,40 @@ rectangle MAIKINE {
     usecase "Assign role" as UC_AssignRole
     usecase "Promote user role" as UC_PromoteRole
     usecase "Demote user role" as UC_DemoteRole
-    usecase "Remove role" as UC_RemoveRole
+    usecase "Modify role" as UC_RemoveRole
+
+    note bottom of (UC_Logout)
+  Log out is an extend of all other views and usecases
+  end note
+
+   note bottom of (UC_EditCost)
+   This use case assumes the Super Administrator has
+   entered the facility operational cost report page.
+   end note
   
 }
 
-SiteAdmin --> UC_Login
-SiteAdmin --> UC_Logout
+SiteAdmin -- UC_Login
+UC_Login <.. UC_Logout :<<extend>>
 UC_Login <.. UC_ViewLogs : <<extend>>
 UC_Login <.. UC_ManageRoles : <<extend>>
 UC_Login <.. UC_EditCost : <<extend>>
-UC_Login <.. UC_RestoreUser : <<extend>>
-UC_Login <.. UC_BanUser : <<extend>>
-
-UC_SearchLogs ..> UC_ViewLogs : <<extend>>
-UC_DownloadLogs ..> UC_ViewLogs : <<extend>>
-UC_FilterLogs ..> UC_ViewLogs : <<extend>>
-
-UC_ViewUsers ..> UC_ManageRoles : <<extend>>
-UC_AssignRole ..> UC_ManageRoles : <<extend>>
-UC_PromoteRole ..> UC_ManageRoles : <<extend>>
-UC_DemoteRole ..> UC_ManageRoles : <<extend>>
-UC_RemoveRole ..> UC_ManageRoles : <<extend>>
 
 
-note left of UC_Logout
-Available from any
-authenticated state
-end note
+
+UC_ViewLogs <.. UC_SearchLogs : <<extend>>
+UC_ViewLogs <.. UC_DownloadLogs : <<extend>>
+UC_ViewLogs <.. UC_FilterLogs : <<extend>>
+
+
+UC_ManageRoles <.. UC_ViewUsers : <<extend>>
+UC_ManageRoles <.. UC_AssignRole : <<extend>>
+UC_ManageRoles <.. UC_PromoteRole : <<extend>>
+UC_ManageRoles <.. UC_DemoteRole : <<extend>>
+UC_ManageRoles <.. UC_RemoveRole : <<extend>>
+UC_ManageRoles <.. UC_BanUser : <<extend>>
+UC_ManageRoles <.. UC_RestoreUser : <<extend>>
+
 
 
 @enduml

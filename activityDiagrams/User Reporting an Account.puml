@@ -1,11 +1,11 @@
 @startuml
 title User Reporting an Account
 
-|Regular User|
+|User|
 start
 :Open report account option;
 :Select report reason;
-:Enter report details and/or evidence;
+:Enter report details;
 :Submit report;
 
 |System|
@@ -13,22 +13,22 @@ start
 
 while (Report invalid?) is (Yes)
   :Display validation error message;
-  |Regular User|
+  |User|
   :Correct report information;
   :Resubmit report;
   |System|
-  :Validate report data;
+
 endwhile (No)
 
 :Store report in database;
 :Notify administrator;
 
-|Administrator|
-:Review report and evidence;
+|Marketplace Administrator|
+:Review report;
 
 if (Violation confirmed?) then (Yes)
   |System|
-  :Ban reported user account;
+  :Ban or reach out to reported user account;
   :Log moderation action;
   :Mark report as resolved;
 else (No)
