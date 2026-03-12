@@ -5,13 +5,12 @@ title Access Log Management
 start
 :Open access log dashboard;
 
-if (Apply filters?) then (Yes)
+if (Apply search or filters?) then (Yes)
   :Enter search or filter criteria;
 else (No)
 endif
 
 |System|
-:Retrieve access log records;
 if (Matching logs found?) then (Yes)
   :Display log entries;
 else (No)

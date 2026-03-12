@@ -28,6 +28,16 @@ rectangle MAIKINE {
   Log out is an extend of all other views and usecases
   end note
 
+  note right of (UC_DenyRequests)
+  If the user wishes to request an equipment for longer than one day 
+  the InventoryAdmin my deny the request
+  end note
+
+  note right of (UC_ApproveRequests)
+  If the user wishes to request an equipment for longer than one day 
+  the InventoryAdmin my approve the request..
+  end note
+
 
 }
 
