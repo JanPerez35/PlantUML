@@ -38,5 +38,5 @@ else (No)
   :Log review outcome;
 endif
 
-stop
+end
 @enduml

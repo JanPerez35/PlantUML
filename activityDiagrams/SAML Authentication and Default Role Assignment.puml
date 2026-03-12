@@ -7,7 +7,7 @@ start
 :Select login;
 
 |Laravel (Service Provider)|
-:Redirect user to UPRM SAML login;
+:Redirect user to UPRM login through SAML;
 
 |UPRM Identity Provider|
 :Authenticate user credentials;
@@ -22,7 +22,7 @@ endif
 :Validate SAML assertion;
 :Extract user identity attributes;
 :Search for local user account;
-if (Account exists?) then (Yes)
+if (Account exists in MAIKINE?) then (Yes)
   :Load stored role;
 else (No)
   :Create local user account;
@@ -32,5 +32,5 @@ endif
 :Authorize access based on role;
 :Display permitted system dashboard;
 
-stop
+end
 @enduml

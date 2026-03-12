@@ -1,13 +1,13 @@
 @startuml
-title Site Admin Role Management
+title Super Admin Role Management
 
-|Site Admin|
+|Super Admin|
 start
 :Log into system;
-:Open User management;
+:Open User Management;
 :Select target user;
 :Select new role:
--Site Admin
+-Super Admin
 -Facility Admin
 -Inventory Admin
 -Marketplace Admin
@@ -24,7 +24,7 @@ start
 |System|
 :Load current role on next page request;
 :Apply updated permissions;
-:Display interface and modules\naccording to new role;
+:Display interface and modules\naccording to their new role;
 
-stop
+end
 @enduml

@@ -31,18 +31,18 @@ rectangle MAIKINE {
 MarketplaceAdmin --> UC_Login
 MarketplaceAdmin --> UC_Logout
 
-MarketplaceAdmin --> UC_Browse
-MarketplaceAdmin --> UC_SearchUsers
-MarketplaceAdmin --> UC_AddListing
-MarketplaceAdmin --> UC_Chat
-MarketplaceAdmin --> UC_Report
-MarketplaceAdmin --> UC_BanUser
+UC_Login <.. UC_Browse : <<extend>>
+UC_Login <.. UC_SearchUsers : <<extend>>
+UC_Login <.. UC_AddListing : <<extend>>
+UC_Login <.. UC_Chat : <<extend>>
+UC_Login <.. UC_Report : <<extend>>
+UC_Login <.. UC_BanUser : <<extend>>
 
-MarketplaceAdmin --> UC_View
-MarketplaceAdmin --> UC_ReviewAccounts
-MarketplaceAdmin --> UC_ViewFlagged
-MarketplaceAdmin --> UC_ViewProfile
-MarketplaceAdmin --> UC_DeleteUserListing
+UC_Login <.. UC_View : <<extend>>
+UC_Login <.. UC_ReviewAccounts : <<extend>>
+UC_Login <.. UC_ViewFlagged : <<extend>>
+UC_Login <.. UC_ViewProfile : <<extend>>
+UC_Login <.. UC_DeleteUserListing : <<extend>>
 
 UC_Filter ..> UC_View : <<extend>>
 UC_ViewFlagged ..> UC_View : <<extend>>
@@ -52,12 +52,16 @@ UC_Dismiss ..> UC_ViewFlagged : <<extend>>
 
 UC_ViewReview ..> UC_ViewProfile : <<extend>>
 
-' layout helpers
 UC_View -[hidden]-> UC_Filter
 UC_View -[hidden]-> UC_ViewFlagged
 UC_ViewFlagged -[hidden]-> UC_Resolve
 UC_Resolve -[hidden]-> UC_Dismiss
 UC_ViewFlagged -[hidden]-> UC_ViewProfile
 UC_ViewProfile -[hidden]-> UC_ViewReview
+
+note left of UC_Logout
+Available from any
+authenticated state
+end note
 
 @enduml

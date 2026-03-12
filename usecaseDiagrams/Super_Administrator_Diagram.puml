@@ -18,13 +18,14 @@ rectangle MAIKINE {
   
     usecase "Log-In" as UC_Login
     usecase "Log-Out" as UC_Logout
-     usecase "Restore user access" as UC_RestoreUser
+    usecase "Restore user access" as UC_RestoreUser
     usecase "Ban user access" as UC_BanUser
     usecase "View access logs" as UC_ViewLogs
     usecase "Manage user roles" as UC_ManageRoles
     usecase "Edit operational costs" as UC_EditCost
   
   
+    usecase "Filter access logs" as UC_FilterLogs
     usecase "Search access logs" as UC_SearchLogs
     usecase "Download access logs CSV" as UC_DownloadLogs
 
@@ -39,23 +40,27 @@ rectangle MAIKINE {
 
 SiteAdmin --> UC_Login
 SiteAdmin --> UC_Logout
-SiteAdmin --> UC_ViewLogs
-SiteAdmin --> UC_ManageRoles
-SiteAdmin --> UC_EditCost
-SiteAdmin --> UC_RestoreUser
-SiteAdmin --> UC_BanUser
+UC_Login <.. UC_ViewLogs : <<extend>>
+UC_Login <.. UC_ManageRoles : <<extend>>
+UC_Login <.. UC_EditCost : <<extend>>
+UC_Login <.. UC_RestoreUser : <<extend>>
+UC_Login <.. UC_BanUser : <<extend>>
 
 UC_SearchLogs ..> UC_ViewLogs : <<extend>>
 UC_DownloadLogs ..> UC_ViewLogs : <<extend>>
+UC_FilterLogs ..> UC_ViewLogs : <<extend>>
 
-UC_ViewUsers ..> UC_ManageRoles : <<include>>
-UC_AssignRole ..> UC_ManageRoles : <<include>>
-UC_PromoteRole ..> UC_ManageRoles : <<include>>
-UC_DemoteRole ..> UC_ManageRoles : <<include>>
-UC_RemoveRole ..> UC_ManageRoles : <<include>>
+UC_ViewUsers ..> UC_ManageRoles : <<extend>>
+UC_AssignRole ..> UC_ManageRoles : <<extend>>
+UC_PromoteRole ..> UC_ManageRoles : <<extend>>
+UC_DemoteRole ..> UC_ManageRoles : <<extend>>
+UC_RemoveRole ..> UC_ManageRoles : <<extend>>
 
 
-
+note left of UC_Logout
+Available from any
+authenticated state
+end note
 
 
 @enduml
