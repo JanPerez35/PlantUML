@@ -6,8 +6,8 @@ actor "Inventory Administrator" as InventoryAdmin
 
 rectangle MAIKINE {
 
-  usecase "Log-In" as UC_Login
-  usecase "Access\nInventory\nManagement" as UC_InventoryMgmt
+  usecase "Login" as UC_Login
+  usecase "Browse\nInventory\nManagement" as UC_InventoryMgmt
   usecase "Add\ninventory" as UC_AddInventory
   usecase "Update\nInventory" as UC_UpdateInventory
   usecase "Remove\nfrom inventory" as UC_RemoveInventory
@@ -15,21 +15,28 @@ rectangle MAIKINE {
   usecase "Deny\nrequests" as UC_DenyRequests
   usecase "View invetory statistics" as UC_ViewStatisitcs
   usecase "View active\nborrowers" as UC_ViewBorrowers
-  usecase "Access\nDepartment\nInventory" as UC_DepLending
+  usecase "Browse\nDepartment\nInventory" as UC_DepLending
   usecase "Ban user" as UC_BanUser
-  usecase "Browse\ninventory" as UC_BrowseInventory
+  usecase "Search user" as UC_SearchUser
   usecase "View Inventory" as UC_View
   usecase "View requests" as UC_ViewRequest
   usecase "Search inventory" as UC_Search
   usecase "Filter inventory" as UC_Filter
-  usecase "Log-Out" as UC_Logout
+  usecase "Log out" as UC_Logout
+
+  note right of (UC_Logout)
+  Log out is an extend of all other views and usecases
+  end note
+
+
 }
 
-InventoryAdmin --> UC_Login
-InventoryAdmin --> UC_Logout
+InventoryAdmin -- UC_Login
 
+UC_Login <.. UC_Logout : <<extend>>
 UC_Login <.. UC_InventoryMgmt : <<extend>>
 UC_Login <.. UC_DepLending : <<extend>>
+UC_Login <.. UC_SearchUser : <<extend>>
 
 UC_InventoryMgmt <.. UC_AddInventory : <<extend>>
 UC_InventoryMgmt <.. UC_RemoveInventory : <<extend>>
@@ -38,21 +45,16 @@ UC_InventoryMgmt <.. UC_DenyRequests : <<extend>>
 UC_InventoryMgmt <.. UC_ViewBorrowers : <<extend>>
 UC_InventoryMgmt <.. UC_View: <<extend>>
 UC_InventoryMgmt <.. UC_ViewRequest: <<extend>>
-UC_InventoryMgmt <.. UC_BanUser : <<extend>>
 UC_InventoryMgmt <.. UC_ViewStatisitcs : <<extend>>
 
-UC_AddInventory <.. UC_UpdateInventory : <<extend>>
-UC_RemoveInventory <.. UC_UpdateInventory : <<extend>>
-UC_ApproveRequests <.. UC_RemoveInventory : <<extend>>
+UC_AddInventory ..> UC_UpdateInventory : <<include>>
+UC_RemoveInventory ..> UC_UpdateInventory : <<include>>
+UC_ApproveRequests ..> UC_RemoveInventory : <<include>>
 
+UC_SearchUser <.. UC_BanUser : <<extend>>
 
-UC_DepLending <.. UC_BrowseInventory : <<extend>>
 UC_DepLending <.. UC_Search : <<extend>>
 UC_DepLending <.. UC_Filter :: <<extend>>
 
-note left of UC_Logout
-Available from any
-authenticated state
-end note
 
 @enduml

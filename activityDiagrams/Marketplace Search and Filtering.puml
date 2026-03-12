@@ -13,7 +13,6 @@ start
 
 |System|
 :Apply search and filter criteria;
-:Retrieve matching listings;
 
 if (Matching listings found?) then (Yes)
   :Display filtered marketplace results;

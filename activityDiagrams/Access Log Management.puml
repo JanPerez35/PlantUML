@@ -1,7 +1,7 @@
 @startuml
 title Access Log Management
 
-|Super Admin|
+|Super Administrator|
 start
 :Open access log dashboard;
 
@@ -18,7 +18,7 @@ else (No)
   :Display no records found message;
 endif
 
-|Super Admin|
+|Super Administrator|
 if (Export logs?) then (Yes)
   |System|
   :Generate CSV/PDF export;
