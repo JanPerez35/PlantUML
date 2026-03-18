@@ -14,6 +14,7 @@ rectangle MAIKINE {
   usecase "Delete\nfacility lending\nevent" as UC_DeleteEvent
   usecase "Search events" as UC_Search
   usecase "Filter events" as UC_Filter
+  usecase "Read/view Contact Information" as UC_ReadContact
   
   note right of (UC_Logout)
   Log out is an extend of all other views and usecases
@@ -28,6 +29,7 @@ UC_Login <.. UC_Logout :<<extend>>
 FacilityAdmin -- UC_Login
 
 UC_Login <.. UC_OperationalCost : <<extend>>
+UC_Login <.. UC_ReadContact: <<extend>>
 
 UC_OperationalCost <.. UC_DownloadCost : <<extend>>
 UC_OperationalCost <.. UC_AddEvent : <<extend>>

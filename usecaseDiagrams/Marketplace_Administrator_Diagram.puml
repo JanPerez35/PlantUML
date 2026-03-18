@@ -25,6 +25,7 @@ rectangle MAIKINE {
   usecase "Resolve report" as UC_Resolve
   usecase "View reported post\n reviews/ratings" as UC_Research
   usecase "Delete user\npost" as UC_DeleteUserPost
+  usecase "Read/view Contact Information" as UC_ReadContact
   
 
   note bottom of (UC_Logout)
@@ -37,6 +38,7 @@ UC_Login <.. UC_Logout :<<extend>>
 UC_Login <.. UC_Browse :<<extend>>
 UC_Login <.. UC_Mana :<<extend>>
 UC_Login <.. UC_SearchUsers :<<extend>>
+UC_Login <.. UC_ReadContact ::<<extend>>
 
 UC_SearchUsers<.. UC_BanUserFromSearch :<<extend>>
 

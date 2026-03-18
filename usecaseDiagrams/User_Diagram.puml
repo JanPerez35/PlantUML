@@ -8,7 +8,7 @@ rectangle MAIKINE {
 
   usecase "Login" as UC_Login
   usecase "Browse Marketplace" as UC_BrowseMP
-  usecase "Read Contact Information" as UC_ReadContact
+  usecase "Read/view Contact Information" as UC_ReadContact
   usecase "Search for equipment" as UC_Search
   usecase "Filter equipment by sport" as UC_Filter
   usecase "View a post" as UC_Listing

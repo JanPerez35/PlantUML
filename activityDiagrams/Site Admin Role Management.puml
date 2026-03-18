@@ -36,7 +36,7 @@ if (Valid role change?) then (Yes)
 :Automatic Logout from system;
 
 |System|
-:Load current role on next page request;
+:Load current role on login;
 :Apply updated permissions;
 :Display interface and modules\naccording to their new role;
 

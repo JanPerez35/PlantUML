@@ -24,6 +24,7 @@ rectangle MAIKINE {
   usecase "Search inventory" as UC_Search
   usecase "Filter inventory" as UC_Filter
   usecase "Download PDF or CSV of statistics" as UC_Download
+  usecase "Read/view Contact Information" as UC_ReadContact
   usecase "Log out" as UC_Logout
 
   note right of (UC_Logout)
@@ -49,6 +50,7 @@ UC_Login <.. UC_Logout : <<extend>>
 UC_Login <.. UC_InventoryMgmt : <<extend>>
 UC_Login <.. UC_DepLending : <<extend>>
 UC_Login <.. UC_SearchUser : <<extend>>
+UC_Login <.. UC_ReadContact :<<extend>>
 
 UC_View <.. UC_AddInventory : <<extend>>
 UC_View <.. UC_RemoveInventory : <<extend>>

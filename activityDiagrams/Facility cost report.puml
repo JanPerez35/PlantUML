@@ -29,6 +29,7 @@ start
     if (Export requested?) then (Yes)
       :Generate export file;
       :Provide download;
+    else (No)  
     endif
 
   else (No)
