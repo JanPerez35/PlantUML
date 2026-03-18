@@ -22,12 +22,12 @@ rectangle MAIKINE {
     usecase "Ban user access" as UC_BanUser
     usecase "View access logs" as UC_ViewLogs
     usecase "Manage user roles" as UC_ManageRoles
-    usecase "Edit operational costs" as UC_EditCost
+    usecase "Edit operational cost rates" as UC_EditCost
   
     
     usecase "Filter access logs" as UC_FilterLogs
     usecase "Search access logs" as UC_SearchLogs
-    usecase "Download access logs CSV" as UC_DownloadLogs
+    usecase "Download access logs CSV and/or PDF" as UC_DownloadLogs
 
   
     usecase "View users" as UC_ViewUsers

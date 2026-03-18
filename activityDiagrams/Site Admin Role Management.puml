@@ -14,12 +14,26 @@ start
 -User;
 
 |System|
-:Update target user's role in database;
-:Log role change action;
-:Display success message;
+if (Valid role change?) then (Yes)
+    :Update target user's role in database;
+
+    fork
+      :Record action in access log;
+    fork again
+      :Show success message;
+    end fork
+
+  else (No)
+  fork
+    :Show validation error;
+    fork again;
+    :Record action in access log;
+    end fork
+  endif
+
 
 |Affected User|
-:Continue current session or refresh session;
+:Automatic Logout from system;
 
 |System|
 :Load current role on next page request;

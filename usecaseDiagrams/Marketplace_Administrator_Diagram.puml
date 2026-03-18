@@ -12,13 +12,14 @@ rectangle MAIKINE {
   usecase "Browse\nMarketplace" as UC_Browse
   usecase "Browse Market Management" as UC_Mana
   usecase "Search users" as UC_SearchUsers
-  usecase "Add user listing" as UC_AddListing
-  usecase "Delete user\nlisting" as UC_DeleteUserListing
+  usecase "Add user post" as UC_AddListing
+  usecase "Delete user\npost" as UC_DeleteUserListing
   usecase "Chat with user" as UC_Chat
   usecase "Report a post" as UC_Report
   usecase "Ban user" as UC_BanUser
+  usecase "Ban user" as UC_BanUserFromSearch
   usecase "Review reported posts" as UC_View
-  usecase "Filter posts" as UC_Filter
+  usecase "Filter/search posts" as UC_Filter
   usecase "View user profile" as UC_ViewProfile
   usecase "View reviews" as UC_ViewReview
   usecase "Resolve report" as UC_Resolve
@@ -36,6 +37,8 @@ UC_Login <.. UC_Logout :<<extend>>
 UC_Login <.. UC_Browse :<<extend>>
 UC_Login <.. UC_Mana :<<extend>>
 UC_Login <.. UC_SearchUsers :<<extend>>
+
+UC_SearchUsers<.. UC_BanUserFromSearch :<<extend>>
 
 UC_Mana <.. UC_View :<<extend>>
 UC_Mana <.. UC_BanUser :<<exntend>>

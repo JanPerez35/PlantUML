@@ -12,7 +12,7 @@ start
 :Enter search term or select filters;
 
 |System|
-:Apply search and filter criteria;
+:Apply search and filter criteria based on type of sport;
 
 if (Matching listings found?) then (Yes)
   :Display filtered marketplace results;

@@ -1,0 +1,32 @@
+@startuml
+title User Post
+
+|User or Marketplace Adminstrator|
+start
+:Open create post page;
+:Enter item details;
+:Select image/s;
+:Submit post;
+
+|System|
+  if (Valid input? (image size quatity, type, text appropriate,etc)) then (Yes)
+
+    fork
+      :Store image file on Laravel file system;
+    fork again
+      :Create post record;
+    end fork
+
+    :Associate image with post via url and ids;
+
+    
+    :Set post grid to top left corner;
+    :Show post;
+  
+
+  else (No)
+    :Show validation errors;
+  endif
+end
+
+@enduml

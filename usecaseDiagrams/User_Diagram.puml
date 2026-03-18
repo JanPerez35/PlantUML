@@ -16,8 +16,10 @@ rectangle MAIKINE {
   usecase "Rate an account" as UC_Rate
   usecase "Report an account" as UC_Report
   usecase "Receive an email notification after a chat\n has been left unread for 15 minutes" as UC_EmailChat
-  usecase "List equipment for sale" as UC_List
-  usecase "Delete own listing" as UC_DeleteList
+  usecase "Receive pending status" as UC_Pending
+  usecase "Search/ filter users" as UC_SearchUser
+  usecase "Post equipment for sale" as UC_List
+  usecase "Delete own post" as UC_DeleteList
   usecase "Browse Department Kinventory" as UC_BrowseIN
   usecase "Browse User Profile" as UC_BrowsePF
   usecase "Search for equipment" as UC_EquipSearch
@@ -41,25 +43,28 @@ UC_Login <.. UC_ReadContact : <<extend>>
 UC_Login <.. UC_Logout  : <<extend>>
 UC_Login <.. UC_BrowseMP : <<extend>>
 UC_Login <.. UC_BrowsePF : <<extend>>
+UC_Login <.. UC_SearchUser:<<extend>>
 
-UC_BrowseMP <.. UC_List : <<extend>>
+
 UC_BrowsePF <.. UC_DeleteList : <<extend>>
 UC_BrowsePF <.. UC_View : <<extend>>
 UC_BrowsePF <.. UC_ViewChat : <<extend>>
 UC_BrowsePF <.. UC_BorrowRequest : <<extend>>
 UC_BrowsePF <.. UC_Review : <<extend>>
 
+UC_BrowseMP <.. UC_List : <<extend>>
 UC_Search ..> UC_BrowseMP : <<extend>>
 UC_Filter ..> UC_BrowseMP : <<extend>>
 UC_Listing ..> UC_BrowseMP : <<extend>>
 
 UC_Chat ..> UC_Listing : <<extend>>
+UC_EmailChat ..> UC_Chat : <<extend>>
 UC_Rate ..> UC_Listing : <<extend>>
 UC_Report ..> UC_Listing : <<extend>>
-UC_EmailChat ..> UC_Chat : <<extend>>
 
 UC_EquipSearch ..> UC_BrowseIN : <<extend>>
 UC_EquipFilter ..> UC_BrowseIN : <<extend>>
+UC_Request <.. UC_Pending: <<extend>>
 UC_EmailResponse ..> UC_Request : <<extend>>
 UC_BrowseIN <.. UC_Request : <<extend>>
 

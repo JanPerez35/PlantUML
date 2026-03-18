@@ -1,0 +1,31 @@
+@startuml
+title Access Log Viewing
+
+|Super Administrator|
+start
+:Open access log page;
+
+|System|
+
+  :Load access logs;
+  :Display log records;
+
+  |Super Administrator|
+  :Enter filter or search criteria;
+
+  |System|
+  if (Filter applied?) then (Yes)
+    :Retrieve filtered logs;
+    :Display filtered results;
+  else (No)
+    :Display recent logs;
+  endif
+
+  if (CSV and /or PDF export requested?) then (Yes)
+    :Generate CSV export;
+    :Provide file download;
+  else (No)
+  endif
+
+end
+@enduml

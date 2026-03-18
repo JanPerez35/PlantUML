@@ -1,0 +1,25 @@
+@startuml
+title Chat Broadcasting
+
+start
+:Message saved successfully;
+:Create broadcast event;
+:Publish event to chat private channel;
+
+fork
+  :Update sender interface;
+  :Keep message on right side;
+fork again
+  :Deliver event to receiver;
+  :Display message on left side;
+fork again
+  :Check if receiver is viewing chat;
+  if (Receiver in active chat?) then (Yes)
+    :Show message immediately by echoing response from event;
+  else (No)
+    :Activate unread indicator;
+  endif
+end fork
+
+end
+@enduml
