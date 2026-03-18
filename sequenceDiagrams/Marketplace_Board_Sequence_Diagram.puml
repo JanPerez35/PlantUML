@@ -1,6 +1,6 @@
 @startuml
 
-title Market User Interaction Sequence Diagram
+title Ideal Marketplace User Interaction Sequence Diagram
 
 actor User
 

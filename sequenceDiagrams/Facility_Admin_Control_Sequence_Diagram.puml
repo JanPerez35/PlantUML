@@ -1,6 +1,6 @@
 @startuml
 
-title Facility Admin Cost and Report Management Sequence Diagram
+title Ideal Facility Admin Control Sequence Diagram
 
 actor "Facility Admin" as Admin
 

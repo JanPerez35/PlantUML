@@ -1,6 +1,6 @@
 @startuml
 
-title Inventory Admin Sequence Diagram
+title Ideal Inventory Admin Sequence Diagram
 
 actor "Inventory Admin" as Admin
 participant "Frontend Website" as Frontend

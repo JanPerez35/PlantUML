@@ -11,7 +11,7 @@ rectangle MAIKINE {
   usecase "Read Contact Information" as UC_ReadContact
   usecase "Search for equipment" as UC_Search
   usecase "Filter equipment by sport" as UC_Filter
-  usecase "View a listing" as UC_Listing
+  usecase "View a post" as UC_Listing
   usecase "Chat with seller" as UC_Chat
   usecase "Rate an account" as UC_Rate
   usecase "Report an account" as UC_Report
@@ -24,7 +24,7 @@ rectangle MAIKINE {
   usecase "Browse User Profile" as UC_BrowsePF
   usecase "Search for equipment" as UC_EquipSearch
   usecase "Filter by equipment" as UC_EquipFilter
-  usecase "View own listing" as UC_View
+  usecase "View own post" as UC_View
   usecase "View own chats" as UC_ViewChat
   usecase "View own borrow requests" as UC_BorrowRequest
   usecase "View own reviews/ratings" as UC_Review

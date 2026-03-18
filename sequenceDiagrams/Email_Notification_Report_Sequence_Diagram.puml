@@ -1,6 +1,6 @@
 @startuml
 
-title Email Reminder Sequence Diagram
+title Ideal Email Reminder Sequence Diagram
 
 actor User
 
@@ -16,6 +16,7 @@ box "Laravel Application" #LightGreen
 end box
 
 participant "Email Service SMTP" as Email
+participant "Gmail" as Gmail
 database "MariaDB Database" as DB
 
 note right of User
@@ -64,16 +65,25 @@ alt Item available
     deactivate ORM
 
     Service --> C: Request approved
+     activate Email
     C -> Email: Send approval email
-    activate Email
-    Email --> C: Email sent
+    activate Gmail
+    Email -> Gmail: Send through Gmail
+    Gmail -> Email: Email sent through
+    deactivate Gmail
+    Email --> C: Email sent confirmation
     deactivate Email
 
 else Item unavailable
     Service --> C: Request rejected
-    C -> Email: Send rejection email
     activate Email
-    Email --> C: Email sent
+    C -> Email: Send rejection email
+     activate Gmail
+    Email -> Gmail: Send through Gmail
+    Gmail -> Email: Email sent through
+    deactivate Gmail
+    
+    Email --> C: Email sent confirmation
     deactivate Email
 end
 
@@ -118,6 +128,10 @@ deactivate ORM
 alt No response in 15 minutes
     MessageService -> Email: Send reminder email
     activate Email
+     activate Gmail
+    Email -> Gmail: Send through Gmail
+    Gmail -> Email: Email sent through
+    deactivate Gmail
     Email --> MessageService: Reminder sent
     deactivate Email
 else User already responded
@@ -162,6 +176,10 @@ deactivate ORM
 
 C -> Email: Send ban notification email
 activate Email
+ activate Gmail
+    Email -> Gmail: Send through Gmail
+    Gmail -> Email: Email sent through
+    deactivate Gmail
 Email --> C: Ban email sent
 deactivate Email
 
