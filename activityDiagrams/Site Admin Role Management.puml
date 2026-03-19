@@ -25,7 +25,7 @@ if (Valid role change?) then (Yes)
 
   else (No)
   fork
-    :Show validation error;
+    :Show error message;
     fork again;
     :Record action in access log;
     end fork

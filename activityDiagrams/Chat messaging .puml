@@ -9,8 +9,7 @@ start
 
 |System|
 
-  :Validate/Verify message content;
-  if (Message valid?) then (Yes)
+  if (Message sent?) then (Yes)
     :Save message;
 
     fork

@@ -28,7 +28,7 @@ endwhile (No)
 
 if (Violation confirmed?) then (Yes)
   |System|
-  :Ban, delete post and/or reach out to reported user account;
+  :Ban, delete post, and/or reach out to reported user account;
   :Log moderation action;
   :Mark report as resolved;
 else (No)
