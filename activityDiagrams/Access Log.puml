@@ -22,7 +22,7 @@ start
   endif
 
   if (CSV and /or PDF export requested?) then (Yes)
-    :Generate CSV export;
+    :Generate CSV/PDF export;
     :Provide file download;
   else (No)
   endif
