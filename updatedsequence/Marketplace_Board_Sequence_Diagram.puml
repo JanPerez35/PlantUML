@@ -1,0 +1,259 @@
+@startuml
+
+title Marketplace User Interaction Sequence Diagram with Exceptions
+
+actor User
+
+participant "Frontend (Website)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "Controller" as C
+  participant "Marketplace Service" as Service
+  participant "Messaging Service" as MessageService
+  participant "Eloquent ORM" as ORM
+end box
+
+database "MariaDB Database" as DB
+
+note right of User
+It is assumed the User is
+authenticated/authorized unless an exception occurs.
+end note
+
+
+== Viewing Posts ==
+
+User -> FE: Browse marketplace
+activate User
+activate FE
+activate Apache
+activate MW
+activate C
+activate Service
+activate MessageService
+activate ORM
+activate DB
+
+FE -> Apache: Request /posts
+
+alt Route exists
+    Apache -> MW: Forward request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display error
+end
+
+alt Valid + Authorized
+    MW -> C: Pass validated request
+else Validation/Auth error
+    MW --> FE: 4xx Error
+    FE --> User: Display error
+end
+
+C -> Service: getPosts()
+Service -> ORM: Retrieve all posts
+ORM -> DB: Query all posts
+
+alt DB query success
+    DB --> ORM: Post records
+    ORM --> Service: Post collection
+    Service --> C: Return posts
+    C --> FE: Display posts
+    FE --> User: Show post list
+else DB query failure
+    DB --> ORM: Error
+    ORM --> Service: Query failed
+    Service --> C: 500 Error
+    C --> FE: Error response
+    FE --> User: Display system error
+end
+
+
+== Creating a Post ==
+
+User -> FE: Create new post (title, description, price)
+FE -> Apache: POST /createPost
+
+alt Route exists
+    Apache -> MW: Forward request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display error
+end
+
+alt Valid + Authorized
+    MW -> C: Pass validated request
+else Validation/Auth error
+    MW --> FE: 4xx Error
+    FE --> User: Display error
+end
+
+C -> Service: createPost(post data)
+Service -> ORM: Save new post
+ORM -> DB: Insert new post
+
+alt DB insert success
+    DB --> ORM: Post saved
+    ORM --> Service: Post persisted
+    Service --> C: Confirm post creation
+    C --> FE: Display new post
+    FE --> User: Show "Post created successfully"
+else DB insert failure
+    DB --> ORM: Error
+    ORM --> Service: Persistence failed
+    Service --> C: 500 Error
+    C --> FE: Error response
+    FE --> User: Display system error
+end
+
+
+== Deleting a Post ==
+
+User -> FE: Find own post and click delete
+FE -> Apache: DELETE /deletePost(postId)
+
+alt Route exists
+    Apache -> MW: Forward request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display error
+end
+
+alt Valid + Authorized
+    MW -> C: Pass validated request
+else Validation/Auth error
+    MW --> FE: 4xx Error
+    FE --> User: Display error
+end
+
+C -> Service: deletePost(postId)
+Service -> ORM: Verify post owner
+ORM -> DB: Query post owner
+
+alt Ownership query success
+    DB --> ORM: Owner verified
+    ORM --> Service: Ownership result
+
+    alt User is owner
+        Service -> ORM: Delete post
+        ORM -> DB: Delete post record
+
+        alt DB delete success
+            DB --> ORM: Post deleted
+            ORM --> Service: Deletion complete
+            Service --> C: Confirm deletion
+            C --> FE: Update marketplace view
+            FE --> User: Show "Post deleted successfully"
+        else DB delete failure
+            DB --> ORM: Error
+            ORM --> Service: Delete failed
+            Service --> C: 500 Error
+            C --> FE: Error response
+            FE --> User: Display system error
+        end
+
+    else User is not owner
+        Service --> C: Access denied
+        C --> FE: 403 Forbidden
+        FE --> User: Show ownership error
+    end
+
+else Ownership query failure
+    DB --> ORM: Error
+    ORM --> Service: Ownership check failed
+    Service --> C: 500 Error
+    C --> FE: Error response
+    FE --> User: Display system error
+end
+
+
+== Messaging Seller ==
+
+User -> FE: Click post and send message
+FE -> Apache: POST /sendMessage
+
+alt Route exists
+    Apache -> MW: Forward request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display error
+end
+
+alt Valid + Authorized
+    MW -> C: Pass validated request
+else Validation/Auth error
+    MW --> FE: 4xx Error
+    FE --> User: Display error
+end
+
+C -> MessageService: sendMessage(postId, message)
+MessageService -> ORM: Check existing chat for this post
+ORM -> DB: Query chat by post and users
+
+alt Chat lookup success
+    DB --> ORM: Chat validation
+    ORM --> MessageService: Chat lookup result
+
+    alt Chat exists
+        MessageService -> ORM: Save message in existing chat
+        ORM -> DB: Insert message
+
+        alt Message save success
+            DB --> ORM: Message saved
+            ORM --> MessageService: Save confirmed
+            MessageService --> C: Message validated
+            C --> FE: Confirm delivery
+            FE --> User: Show message sent confirmation
+        else Message save failure
+            DB --> ORM: Error
+            ORM --> MessageService: Save failed
+            MessageService --> C: 500 Error
+            C --> FE: Error response
+            FE --> User: Display system error
+        end
+
+    else New chat
+        MessageService -> ORM: Create new chat
+        ORM -> DB: Insert chat
+
+        alt Chat creation success
+            DB --> ORM: Chat created
+            ORM --> MessageService: Chat persisted
+
+            MessageService -> ORM: Save message in new chat
+            ORM -> DB: Insert message
+
+            alt Message save success
+                DB --> ORM: Message saved
+                ORM --> MessageService: Save confirmed
+                MessageService --> C: Message validated
+                C --> FE: Confirm delivery
+                FE --> User: Show message sent confirmation
+            else Message save failure
+                DB --> ORM: Error
+                ORM --> MessageService: Save failed
+                MessageService --> C: 500 Error
+                C --> FE: Error response
+                FE --> User: Display system error
+            end
+
+        else Chat creation failure
+            DB --> ORM: Error
+            ORM --> MessageService: Chat creation failed
+            MessageService --> C: 500 Error
+            C --> FE: Error response
+            FE --> User: Display system error
+        end
+    end
+
+else Chat lookup failure
+    DB --> ORM: Error
+    ORM --> MessageService: Chat lookup failed
+    MessageService --> C: 500 Error
+    C --> FE: Error response
+    FE --> User: Display system error
+end
+
+@enduml

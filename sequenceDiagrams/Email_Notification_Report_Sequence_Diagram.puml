@@ -166,7 +166,7 @@ deactivate MW
 
 activate C
 C -> ORM: Check user status
-activate ORM
+activate ORM2
 ORM -> DB: Query user record
 activate DB
 DB --> ORM: User status = banned

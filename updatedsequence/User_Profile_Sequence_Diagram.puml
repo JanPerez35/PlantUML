@@ -1,0 +1,209 @@
+@startuml
+
+title User Profile Sequence Diagram with Exceptions
+
+actor User
+
+participant "Frontend (Website)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "Controller" as C
+  participant "Inventory Service" as Service
+  participant "Messaging Service" as MessageService
+  participant "Eloquent ORM" as ORM
+end box
+
+database "MariaDB Database" as DB
+
+note right of User
+It is assumed the User is
+authenticated/authorized unless an exception occurs.
+end note
+
+
+== View User Posts ==
+
+User -> FE: Click "My Posts"
+activate User
+activate FE
+activate Apache
+activate MW
+activate C
+activate Service
+activate MessageService
+activate ORM
+activate DB
+
+FE -> Apache: GET /user/posts
+
+alt Route exists
+    Apache -> MW: Forward request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display error
+end
+
+alt Valid + Authorized
+    MW -> C: Pass validated request
+else Validation/Auth error
+    MW --> FE: 4xx Error
+    FE --> User: Display error
+end
+
+C -> Service: getUserPosts(userId)
+Service -> ORM: Query posts by userId
+ORM -> DB: Select user posts
+
+alt DB query success
+    DB --> ORM: List of posts
+    ORM --> Service: Post collection
+    Service --> C: Return posts
+    C --> FE: Return posts
+    FE --> User: Show posts
+else DB query failure
+    DB --> ORM: Error
+    ORM --> Service: Query failed
+    Service --> C: 500 Error
+    C --> FE: Error response
+    FE --> User: Display system error
+end
+
+
+== Delete a Post ==
+
+User -> FE: Click "Delete" on post
+FE -> Apache: DELETE /post/{postId}
+
+alt Route exists
+    Apache -> MW: Forward delete request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display error
+end
+
+alt Valid + Authorized
+    MW -> C: Pass validated request
+else Validation/Auth error
+    MW --> FE: 4xx Error
+    FE --> User: Display error
+end
+
+C -> Service: deletePost(postId)
+Service -> ORM: Verify post owner
+ORM -> DB: Query post owner
+
+alt Ownership query success
+    DB --> ORM: Ownership result
+    ORM --> Service: Ownership status
+
+    alt User is owner
+        Service -> ORM: Delete post
+        ORM -> DB: Remove post record
+
+        alt DB delete success
+            DB --> ORM: Deletion confirmed
+            ORM --> Service: Post removed
+            Service --> C: Confirm deletion
+            C --> FE: Confirm deletion
+            FE --> User: Display deletion confirmation
+        else DB delete failure
+            DB --> ORM: Error
+            ORM --> Service: Delete failed
+            Service --> C: 500 Error
+            C --> FE: Error response
+            FE --> User: Display system error
+        end
+
+    else User is not owner
+        Service --> C: Access denied
+        C --> FE: 403 Forbidden
+        FE --> User: Show ownership error
+    end
+
+else Ownership query failure
+    DB --> ORM: Error
+    ORM --> Service: Ownership check failed
+    Service --> C: 500 Error
+    C --> FE: Error response
+    FE --> User: Display system error
+end
+
+
+== Check Messages ==
+
+User -> FE: Open "Messages"
+FE -> Apache: GET /user/messages
+
+alt Route exists
+    Apache -> MW: Forward request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display error
+end
+
+alt Valid + Authorized
+    MW -> C: Pass validated request
+else Validation/Auth error
+    MW --> FE: 4xx Error
+    FE --> User: Display error
+end
+
+C -> MessageService: getUserMessages(userId)
+MessageService -> ORM: Query messages by userId
+ORM -> DB: Select user messages
+
+alt DB query success
+    DB --> ORM: List of messages
+    ORM --> MessageService: Message collection
+    MessageService --> C: Return messages
+    C --> FE: Display messages
+    FE --> User: Show messages
+else DB query failure
+    DB --> ORM: Error
+    ORM --> MessageService: Query failed
+    MessageService --> C: 500 Error
+    C --> FE: Error response
+    FE --> User: Display system error
+end
+
+
+== View Borrow/Lend Requests ==
+
+User -> FE: Open "My Requests"
+FE -> Apache: GET /user/requests
+
+alt Route exists
+    Apache -> MW: Forward request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display error
+end
+
+alt Valid + Authorized
+    MW -> C: Pass validated request
+else Validation/Auth error
+    MW --> FE: 4xx Error
+    FE --> User: Display error
+end
+
+C -> Service: getUserRequests(userId)
+Service -> ORM: Query borrow/lend requests
+ORM -> DB: Select user requests
+
+alt DB query success
+    DB --> ORM: List of requests
+    ORM --> Service: Request collection
+    Service --> C: Return requests
+    C --> FE: Display requests
+    FE --> User: Show request statuses
+else DB query failure
+    DB --> ORM: Error
+    ORM --> Service: Query failed
+    Service --> C: 500 Error
+    C --> FE: Error response
+    FE --> User: Display system error
+end
+
+@enduml

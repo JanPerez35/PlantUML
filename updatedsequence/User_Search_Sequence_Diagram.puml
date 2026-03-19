@@ -1,0 +1,147 @@
+@startuml
+
+title User Search and Profile Interaction Sequence Diagram with Exceptions
+
+actor User
+
+participant "Frontend (Website)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "Controller" as C
+  participant "User Service" as Service
+  participant "Eloquent ORM" as ORM
+end box
+
+database "MariaDB Database" as DB
+
+note right of User
+It is assumed the User is
+authenticated/authorized unless an exception occurs.
+end note
+
+
+== Search Users ==
+
+User -> FE: Open "Search Users" tab
+activate User
+activate FE
+activate Apache
+activate MW
+activate C
+activate Service
+activate ORM
+activate DB
+
+FE -> Apache: GET /users
+
+alt Route exists
+    Apache -> MW: Forward request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display error
+end
+
+alt Valid + Authorized
+    MW -> C: Pass validated request
+else Validation/Auth error
+    MW --> FE: 4xx Error
+    FE --> User: Display error
+end
+
+C -> Service: getUsers()
+Service -> ORM: Query users
+ORM -> DB: Select users
+
+alt DB query success
+    DB --> ORM: User list
+    ORM --> Service: User collection
+    Service --> C: Return users
+    C --> FE: Display users
+    FE --> User: Show search results
+else DB query failure
+    DB --> ORM: Error
+    ORM --> Service: Query failed
+    Service --> C: 500 Error
+    C --> FE: Error response
+    FE --> User: Display system error
+end
+
+
+== View Profile ==
+
+User -> FE: Click user profile
+FE -> Apache: GET /userProfile(userId)
+
+alt Route exists
+    Apache -> MW: Forward request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display error
+end
+
+alt Valid + Authorized
+    MW -> C: Pass validated request
+else Validation/Auth error
+    MW --> FE: 4xx Error
+    FE --> User: Display error
+end
+
+C -> Service: getUserProfile(userId)
+Service -> ORM: Query profile data
+ORM -> DB: Select profile data
+
+alt DB query success
+    DB --> ORM: Profile info
+    ORM --> Service: Profile result
+    Service --> C: Return profile
+    C --> FE: Display profile
+    FE --> User: Show user profile
+else DB query failure
+    DB --> ORM: Error
+    ORM --> Service: Query failed
+    Service --> C: 500 Error
+    C --> FE: Error response
+    FE --> User: Display system error
+end
+
+
+== Optional Report ==
+
+User -> FE: Click "Report User"
+FE -> Apache: POST /reportUser
+
+alt Route exists
+    Apache -> MW: Forward request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display error
+end
+
+alt Valid + Authorized
+    MW -> C: Pass validated request
+else Validation/Auth error
+    MW --> FE: 4xx Error
+    FE --> User: Display error
+end
+
+C -> Service: createUserReport(userId, reason)
+Service -> ORM: Save report
+ORM -> DB: Insert report
+
+alt DB insert success
+    DB --> ORM: Report saved
+    ORM --> Service: Report persisted
+    Service --> C: Report confirmed
+    C --> FE: Display confirmation
+    FE --> User: Show "Report submitted"
+else DB insert failure
+    DB --> ORM: Error
+    ORM --> Service: Persistence failed
+    Service --> C: 500 Error
+    C --> FE: Error response
+    FE --> User: Display system error
+end
+
+@enduml

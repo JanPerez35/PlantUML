@@ -1,0 +1,145 @@
+@startuml
+
+title User Inventory Item Request Sequence Diagram with Exceptions
+
+actor User
+participant "Frontend Website" as Frontend
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as Middleware
+  participant "Controller" as Controller
+  participant "Inventory Service" as Service
+  participant "Eloquent ORM" as ORM
+end box
+
+database "MariaDB Database" as Database
+
+note right of User
+It is assumed the User is
+authenticated/authorized unless an exception occurs.
+end note
+
+
+== Search Inventory ==
+
+User -> Frontend: Search inventory item
+activate User
+activate Frontend
+activate Apache
+activate Middleware
+activate Controller
+activate Service
+activate ORM
+activate Database
+
+Frontend -> Apache: Request /items
+
+alt Route exists
+    Apache -> Middleware: Forward request
+else Route not found
+    Apache --> Frontend: 404 Not Found
+    Frontend --> User: Display error
+end
+
+alt Valid + Authorized
+    Middleware -> Controller: Pass validated request
+else Validation/Auth error
+    Middleware --> Frontend: 4xx Error
+    Frontend --> User: Display error
+end
+
+Controller -> Service: getItems()
+Service -> ORM: Retrieve items
+ORM -> Database: SELECT * FROM items
+
+alt DB query success
+    Database --> ORM: Item records
+    ORM --> Service: Item collection
+    Service --> Controller: Item list
+    Controller --> Frontend: Item list
+    Frontend --> User: Display inventory
+else DB query failure
+    Database --> ORM: Error
+    ORM --> Service: Query failed
+    Service --> Controller: 500 Error
+    Controller --> Frontend: Error response
+    Frontend --> User: Display system error
+end
+
+
+== Borrow Request ==
+
+User -> Frontend: Select item & Request
+Frontend -> Apache: POST /borrowRequest
+
+alt Route exists
+    Apache -> Middleware: Forward request
+else Route not found
+    Apache --> Frontend: 404 Not Found
+    Frontend --> User: Display error
+end
+
+alt Valid + Authorized
+    Middleware -> Controller: Pass validated request
+else Validation/Auth error
+    Middleware --> Frontend: 4xx Error
+    Frontend --> User: Display error
+end
+
+Controller -> Service: createBorrowRequest()
+Service -> ORM: Check item availability
+ORM -> Database: SELECT status FROM items
+
+alt Availability query success
+    Database --> ORM: Item status
+    ORM --> Service: Availability result
+
+    alt Item available
+        Service -> ORM: Save borrow request
+        ORM -> Database: INSERT borrow_request
+
+        alt Borrow request saved
+            Database --> ORM: Insert successful
+            ORM --> Service: Request persisted
+
+            Service -> ORM: Update item status [Reserved]
+            ORM -> Database: UPDATE items SET status='Reserved'
+
+            alt Item status updated
+                Database --> ORM: Update successful
+                ORM --> Service: Status updated
+                Service --> Controller: Request approved
+                Controller --> Frontend: Response
+                Frontend --> User: Display confirmation
+            else Item status update failure
+                Database --> ORM: Error
+                ORM --> Service: Status update failed
+                Service --> Controller: 500 Error
+                Controller --> Frontend: Error response
+                Frontend --> User: Display system error
+            end
+
+        else Borrow request save failure
+            Database --> ORM: Error
+            ORM --> Service: Request persistence failed
+            Service --> Controller: 500 Error
+            Controller --> Frontend: Error response
+            Frontend --> User: Display system error
+        end
+
+    else Item unavailable
+        Service --> Controller: Request rejected
+        Controller --> Frontend: Response
+        Frontend --> User: Display confirmation
+    end
+
+else Availability query failure
+    Database --> ORM: Error
+    ORM --> Service: Availability check failed
+    Service --> Controller: 500 Error
+    Controller --> Frontend: Error response
+    Frontend --> User: Display system error
+end
+
+@enduml

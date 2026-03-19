@@ -1,0 +1,201 @@
+@startuml
+
+title Super Admin Control Sequence Diagram with Exceptions
+
+actor "Super Admin" as Admin
+
+participant "Frontend (Web Portal)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "Controller" as C
+  participant "Site Administration Service" as Service
+  participant "Eloquent ORM" as ORM
+end box
+
+database "MariaDB Database" as DB
+
+note right of Admin
+Super Admin has full system privileges.
+They can perform all actions available to:
+- Inventory Admin
+- Marketplace Admin
+- Facility Admin
+- User
+Those workflows are not repeated here.
+end note
+
+note left of DB
+It is assumed the Super Admin is
+authenticated/authorized unless an exception occurs.
+end note
+
+
+== Assign / Update / Remove User Role ==
+
+Admin -> FE: Search user and assign/update/remove role
+activate Admin
+activate FE
+activate Apache
+activate MW
+activate C
+activate Service
+activate ORM
+activate DB
+
+FE -> Apache: POST /admin/updateUserRole
+
+alt Route exists
+    Apache -> MW: Forward request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display error
+end
+
+alt Valid + Authorized
+    MW -> C: Pass validated request
+else Validation/Auth error
+    MW --> FE: 4xx Error
+    FE --> Admin: Display error
+end
+
+C -> Service: updateUserRole(userId, role)
+Service -> ORM: Query user
+ORM -> DB: Select user record
+
+alt User query success
+    DB --> ORM: User found
+    ORM --> Service: User entity
+
+    alt User exists
+        Service -> ORM: Update role assignment
+        ORM -> DB: Update user role
+
+        alt Role update success
+            DB --> ORM: Role updated
+            ORM --> Service: Role persisted
+            Service --> C: Role update confirmed
+            C --> FE: Display confirmation
+            FE --> Admin: Show "User role updated"
+        else Role update failure
+            DB --> ORM: Error
+            ORM --> Service: Role update failed
+            Service --> C: 500 Error
+            C --> FE: Error response
+            FE --> Admin: Display system error
+        end
+
+    else User not found
+        Service --> C: User not found
+        C --> FE: 404 User Not Found
+        FE --> Admin: Display user not found message
+    end
+
+else User query failure
+    DB --> ORM: Error
+    ORM --> Service: User lookup failed
+    Service --> C: 500 Error
+    C --> FE: Error response
+    FE --> Admin: Display system error
+end
+
+
+== Modify Facility Cost Certificate ==
+
+Admin -> FE: Update cost report formula
+FE -> Apache: POST /admin/updateCostCertificate
+
+alt Route exists
+    Apache -> MW: Forward request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display error
+end
+
+alt Valid + Authorized
+    MW -> C: Pass validated request
+else Validation/Auth error
+    MW --> FE: 4xx Error
+    FE --> Admin: Display error
+end
+
+C -> Service: updateCostCertificate
+Service -> ORM: Store new Certificate
+ORM -> DB: Update certificate configuration
+
+alt Certificate update success
+    DB --> ORM: Certificate saved
+    ORM --> Service: Certificate persisted
+    Service --> C: Update confirmed
+    C --> FE: Display confirmation
+    FE --> Admin: Show "Cost Certificate updated"
+else Certificate update failure
+    DB --> ORM: Error
+    ORM --> Service: Certificate update failed
+    Service --> C: 500 Error
+    C --> FE: Error response
+    FE --> Admin: Display system error
+end
+
+
+== Ban / Unban User ==
+
+Admin -> FE: Ban or Unban selected user
+FE -> Apache: POST /admin/updateUserStatus
+
+alt Route exists
+    Apache -> MW: Forward request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display error
+end
+
+alt Valid + Authorized
+    MW -> C: Pass validated request
+else Validation/Auth error
+    MW --> FE: 4xx Error
+    FE --> Admin: Display error
+end
+
+C -> Service: updateUserStatus(userId, status)
+Service -> ORM: Query user
+ORM -> DB: Select user record
+
+alt User query success
+    DB --> ORM: User found
+    ORM --> Service: User entity
+
+    alt User exists
+        Service -> ORM: Update user status (banned/unbanned)
+        ORM -> DB: Update user status
+
+        alt Status update success
+            DB --> ORM: Status updated
+            ORM --> Service: Status persisted
+            Service --> C: Status update confirmed
+            C --> FE: Display confirmation
+            FE --> Admin: Show "User status updated"
+        else Status update failure
+            DB --> ORM: Error
+            ORM --> Service: Status update failed
+            Service --> C: 500 Error
+            C --> FE: Error response
+            FE --> Admin: Display system error
+        end
+
+    else User not found
+        Service --> C: User not found
+        C --> FE: 404 User Not Found
+        FE --> Admin: Display user not found message
+    end
+
+else User query failure
+    DB --> ORM: Error
+    ORM --> Service: User lookup failed
+    Service --> C: 500 Error
+    C --> FE: Error response
+    FE --> Admin: Display system error
+end
+
+@enduml

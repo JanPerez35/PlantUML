@@ -1,0 +1,196 @@
+@startuml
+
+title Facility Admin Control Sequence Diagram with Exceptions
+
+actor "Facility Admin" as Admin
+
+participant "Frontend (Web Portal)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "Controller" as C
+  participant "Facility Cost Service" as Service
+  participant "Eloquent ORM" as ORM
+end box
+
+participant "EventFlow API" as EventFlow
+database "MariaDB Database" as DB
+
+note left of DB
+It is assumed the Facility Admin is
+authenticated/authorized unless an exception occurs.
+end note
+== Adding Event ==
+
+Admin -> FE: Enter cost details (description, amount, date)
+activate Admin
+activate FE
+activate Apache
+activate MW
+activate C
+activate Service
+activate ORM
+activate EventFlow
+activate DB
+
+FE -> Apache: POST /addEvent
+
+alt Route exists
+    Apache -> MW: Forward request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display error
+end
+
+alt Valid + Authorized
+    MW -> C: Pass validated request
+else Validation/Auth error
+    MW --> FE: 4xx Error
+    FE --> Admin: Display error
+end
+
+C -> Service: addEvent(cost data)
+Service -> ORM: Save new event entry
+ORM -> DB: Insert event record
+
+alt DB insert success
+    DB --> ORM: Event saved
+    ORM --> Service: Event persisted
+    Service --> C: Confirm event creation
+    C --> FE: Display confirmation
+    FE --> Admin: Show "Event added successfully"
+else DB insert failure
+    DB --> ORM: Error
+    ORM --> Service: Persistence failed
+    Service --> C: 500 Error
+    C --> FE: Error response
+    FE --> Admin: Display system error
+end
+
+
+== Deleting Event ==
+
+Admin -> FE: Select event and click "Delete"
+FE -> Apache: DELETE /deleteEvent/{eventId}
+
+alt Route exists
+    Apache -> MW: Forward request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display error
+end
+
+alt Valid + Authorized
+    MW -> C: Pass validated request
+else Validation/Auth error
+    MW --> FE: 4xx Error
+    FE --> Admin: Display error
+end
+
+C -> Service: deleteEvent(eventId)
+Service -> ORM: Remove event entry
+ORM -> DB: Delete event record
+
+alt DB delete success
+    DB --> ORM: Deletion confirmed
+    ORM --> Service: Event removed
+    Service --> C: Confirm deletion
+    C --> FE: Display deletion confirmation
+    FE --> Admin: Show "Cost deleted successfully"
+else DB delete failure
+    DB --> ORM: Error
+    ORM --> Service: Deletion failed
+    Service --> C: 500 Error
+    C --> FE: Error response
+    FE --> Admin: Display system error
+end
+
+
+== Pulling Data from EventFlow API ==
+
+Admin -> FE: Request external data
+FE -> Apache: GET /pullEventFlowData
+
+alt Route exists
+    Apache -> MW: Forward request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display error
+end
+
+alt Valid + Authorized
+    MW -> C: Pass validated request
+else Validation/Auth error
+    MW --> FE: 4xx Error
+    FE --> Admin: Display error
+end
+
+C -> Service: fetchEventFlowData()
+Service -> EventFlow: Request relevant data
+
+alt API request success
+    EventFlow --> Service: Return data
+    Service -> ORM: Save data locally
+    ORM -> DB: Insert imported data
+
+    alt DB insert success
+        DB --> ORM: Data saved
+        ORM --> Service: Data persisted
+        Service --> C: Return data
+        C --> FE: Display pulled data
+        FE --> Admin: Show event data
+    else DB insert failure
+        DB --> ORM: Error
+        ORM --> Service: Persistence failed
+        Service --> C: 500 Error
+        C --> FE: Error response
+        FE --> Admin: Display system error
+    end
+
+else API unavailable / request failed
+    EventFlow --> Service: API error
+    Service --> C: External service failure
+    C --> FE: 503 Service Unavailable
+    FE --> Admin: Display EventFlow unavailable message
+end
+
+
+== Downloading Report ==
+
+Admin -> FE: Download report
+FE -> Apache: GET /downloadReport
+
+alt Route exists
+    Apache -> MW: Forward request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display error
+end
+
+alt Valid + Authorized
+    MW -> C: Pass validated request
+else Validation/Auth error
+    MW --> FE: 4xx Error
+    FE --> Admin: Display error
+end
+
+C -> Service: getReport()
+Service -> ORM: Query costs and imported data
+ORM -> DB: Select report from database
+
+alt DB query success
+    DB --> ORM: Report file
+    ORM --> Service: Report returned
+    Service --> C: Return report (CSV/PDF)
+    C --> FE: Deliver report
+    FE --> Admin: File downloaded
+else DB query failure
+    DB --> ORM: Error
+    ORM --> Service: Report generation failed
+    Service --> C: 500 Error
+    C --> FE: Error response
+    FE --> Admin: Display system error
+end
+
+@enduml

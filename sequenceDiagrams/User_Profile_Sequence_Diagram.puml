@@ -160,41 +160,5 @@ FE --> User: Show request statuses
 deactivate FE
 deactivate User
 
-== Cancel Borrow Request ==
-User -> FE: Click "Cancel Request"
-activate User
-activate FE
-
-FE -> Apache: DELETE /borrowRequest/{requestId}
-activate Apache
-Apache -> MW: Forward cancel request
-deactivate Apache
-
-activate MW
-MW -> C: Pass validated request
-deactivate MW
-
-activate C
-C -> Service: cancelBorrowRequest(requestId)
-activate Service
-
-Service -> ORM: Update request status to "cancelled"
-activate ORM
-ORM -> DB: Update borrow request
-activate DB
-DB --> ORM: Cancellation confirmed
-deactivate DB
-
-ORM --> Service: Request updated
-deactivate ORM
-
-Service --> C: Confirm cancellation
-deactivate Service
-C --> FE: Cancellation successful
-deactivate C
-
-FE --> User: Display cancellation confirmation
-deactivate FE
-deactivate User
 
 @enduml

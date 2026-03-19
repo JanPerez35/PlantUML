@@ -1,0 +1,229 @@
+@startuml
+
+title Marketplace Admin Control Sequence Diagram with Exceptions
+
+actor "Marketplace Admin" as Admin
+
+note right of Admin
+Marketplace Admin inherits all
+Marketplace specific User capabilities.
+
+This diagram only shows
+additional administrative actions.
+end note
+
+participant "Frontend (Website)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "Controller" as C
+  participant "Marketplace Service" as Service
+  participant "Eloquent ORM" as ORM
+end box
+
+database "MariaDB Database" as DB
+
+note left of DB
+It is assumed the Marketplace Admin is
+authenticated/authorized unless an exception occurs.
+end note
+
+
+== Admin Delete Any Post ==
+
+Admin -> FE: Select any post and delete
+activate Admin
+activate FE
+activate Apache
+activate MW
+activate C
+activate Service
+activate ORM
+activate DB
+
+FE -> Apache: DELETE /admin/deletePost(postId)
+
+alt Route exists
+    Apache -> MW: Forward request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display error
+end
+
+alt Valid + Authorized
+    MW -> C: Pass validated request
+else Validation/Auth error
+    MW --> FE: 4xx Error
+    FE --> Admin: Display error
+end
+
+C -> Service: deletePost(postId)
+Service -> ORM: Delete selected post
+ORM -> DB: Remove post record
+
+alt DB delete success
+    DB --> ORM: Deletion success
+    ORM --> Service: Post removed
+    Service --> C: Confirm deletion
+    C --> FE: Update marketplace view
+    FE --> Admin: Show "Post removed"
+else DB delete failure
+    DB --> ORM: Error
+    ORM --> Service: Delete failed
+    Service --> C: 500 Error
+    C --> FE: Error response
+    FE --> Admin: Display system error
+end
+
+
+== Search and Ban User ==
+
+Admin -> FE: Search user
+FE -> Apache: GET /admin/users?search
+
+alt Route exists
+    Apache -> MW: Forward request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display error
+end
+
+alt Valid + Authorized
+    MW -> C: Pass validated request
+else Validation/Auth error
+    MW --> FE: 4xx Error
+    FE --> Admin: Display error
+end
+
+C -> Service: searchUsers()
+Service -> ORM: Query users
+ORM -> DB: Select matching users
+
+alt DB query success
+    DB --> ORM: User list
+    ORM --> Service: User collection
+    Service --> C: Return users
+    C --> FE: Display users
+    FE --> Admin: Show user list
+else DB query failure
+    DB --> ORM: Error
+    ORM --> Service: User query failed
+    Service --> C: 500 Error
+    C --> FE: Error response
+    FE --> Admin: Display system error
+end
+
+
+Admin -> FE: Ban selected user
+FE -> Apache: POST /admin/banUser
+
+alt Route exists
+    Apache -> MW: Forward request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display error
+end
+
+alt Valid + Authorized
+    MW -> C: Pass validated request
+else Validation/Auth error
+    MW --> FE: 4xx Error
+    FE --> Admin: Display error
+end
+
+C -> Service: banUser(userId)
+Service -> ORM: Update user status [Banned]
+ORM -> DB: Update user record
+
+alt DB update success
+    DB --> ORM: Update success
+    ORM --> Service: Ban persisted
+    Service --> C: Ban confirmed
+    C --> FE: Response
+    FE --> Admin: Show "User banned"
+else DB update failure
+    DB --> ORM: Error
+    ORM --> Service: Ban failed
+    Service --> C: 500 Error
+    C --> FE: Error response
+    FE --> Admin: Display system error
+end
+
+
+== View Flagged Reviews ==
+
+Admin -> FE: View flagged reviews
+FE -> Apache: GET /admin/reviews
+
+alt Route exists
+    Apache -> MW: Forward request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display error
+end
+
+alt Valid + Authorized
+    MW -> C: Pass validated request
+else Validation/Auth error
+    MW --> FE: 4xx Error
+    FE --> Admin: Display error
+end
+
+C -> Service: getFlaggedReviews()
+Service -> ORM: Query flagged reviews
+ORM -> DB: Select flagged reviews
+
+alt DB query success
+    DB --> ORM: Review list
+    ORM --> Service: Review collection
+    Service --> C: Return reviews
+    C --> FE: Display reviews
+    FE --> Admin: Show flagged reviews
+else DB query failure
+    DB --> ORM: Error
+    ORM --> Service: Review query failed
+    Service --> C: 500 Error
+    C --> FE: Error response
+    FE --> Admin: Display system error
+end
+
+
+== Resolve Report ==
+
+Admin -> FE: Open report and resolve
+FE -> Apache: POST /admin/resolveReport
+
+alt Route exists
+    Apache -> MW: Forward request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display error
+end
+
+alt Valid + Authorized
+    MW -> C: Pass validated request
+else Validation/Auth error
+    MW --> FE: 4xx Error
+    FE --> Admin: Display error
+end
+
+C -> Service: resolveReport(reportId)
+Service -> ORM: Update report status [Resolved]
+ORM -> DB: Update report record
+
+alt DB update success
+    DB --> ORM: Update success
+    ORM --> Service: Resolution persisted
+    Service --> C: Resolution confirmed
+    C --> FE: Response
+    FE --> Admin: Show "Report resolved"
+else DB update failure
+    DB --> ORM: Error
+    ORM --> Service: Resolution failed
+    Service --> C: 500 Error
+    C --> FE: Error response
+    FE --> Admin: Display system error
+end
+
+@enduml

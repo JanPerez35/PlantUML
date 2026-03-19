@@ -1,0 +1,275 @@
+@startuml
+
+title Email Reminder Sequence Diagram with Exceptions
+
+actor User
+
+participant "Frontend (Website)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "Controller" as C
+  participant "Inventory Service" as Service
+  participant "Messaging Service" as MessageService
+  participant "Eloquent ORM" as ORM
+end box
+
+participant "Email Service SMTP" as Email
+participant "Gmail" as Gmail
+database "MariaDB Database" as DB
+
+note left of DB
+It is assumed the User is
+authenticated/authorized unless an exception occurs.
+end note
+
+== Inventory Request Response ==
+
+User -> FE: Submit inventory request
+activate User
+activate FE
+activate Apache
+activate MW
+activate C
+activate Service
+activate MessageService
+activate Email
+activate ORM
+activate Gmail
+activate DB
+
+FE -> Apache: POST /borrowRequest
+
+
+alt Route exists
+    Apache -> MW: Forward request
+   
+else Route not found
+    Apache --> FE: 404 Not Found
+
+    FE --> User: Display error
+    
+    
+end
+
+
+
+alt Valid + Authorized
+    MW -> C: Pass validated request
+    
+else Validation/Auth error
+    MW --> FE: 4xx Error
+    
+    FE --> User: Display error
+   
+end
+
+
+
+C -> Service: createBorrowRequest()
+
+
+Service -> ORM: Check availability
+
+ORM -> DB: Query item
+
+
+alt DB success
+    DB --> ORM: Result
+else DB failure
+    DB --> ORM: Error
+   
+    ORM --> Service: Failure
+    Service --> C: 500 Error
+    C --> FE: Error response
+    FE --> User: Display system error
+  
+end
+
+ORM --> Service: Available?
+
+alt Item available
+
+    Service -> ORM: Save request
+    ORM -> DB: Insert
+
+    alt Save success
+        DB --> ORM: OK
+        ORM --> Service: Persisted
+
+        Service --> C: Approved
+
+        C -> Email: Send approval email
+
+        alt Email success
+            Email -> Gmail: Send
+            Gmail --> Email: Delivered
+            Email --> C: Confirmed
+        else Email failure
+            Email --> C: Failed
+        end
+
+
+    else Save failure
+        DB --> ORM: Error
+        ORM --> Service: Failed
+        Service --> C: 500 Error
+    end
+
+else Item unavailable
+
+    Service --> C: Rejected
+
+    C -> Email: Send rejection email
+
+    alt Email success
+        Email -> Gmail: Send
+        Gmail --> Email: Delivered
+        Email --> C: Confirmed
+    else Email failure
+        Email --> C: Failed
+    end
+
+
+end
+
+
+C --> FE: Response
+
+FE --> User: Display confirmation
+
+
+
+== Message Reminder Email ==
+
+User -> FE: Open messages
+
+
+FE -> Apache: GET /messages
+
+
+alt Route exists
+    Apache -> MW: Forward
+else Route not found
+    Apache --> FE: 404
+
+    FE --> User: Display error
+   
+end
+
+
+
+alt Authorized
+    MW -> C: Pass request
+else Auth error
+    MW --> FE: 401/403
+    FE --> User: Display error
+  
+end
+
+
+C -> MessageService: check timeout
+
+MessageService -> ORM: Get timestamp
+ORM -> DB: Query
+
+alt DB success
+    DB --> ORM: Timestamp
+else DB failure
+    DB --> ORM: Error
+    ORM --> MessageService: Failed
+    MessageService --> C: 500
+    C --> FE: Error
+    FE --> User: Display error
+  
+end
+
+ORM --> MessageService: Result
+
+alt Timeout reached
+
+    MessageService -> Email: Send reminder
+
+    alt Email success
+        Email -> Gmail: Send
+        Gmail --> Email: Delivered
+        Email --> MessageService: OK
+    else Email failure
+        Email --> MessageService: Failed
+    end
+
+
+else No timeout
+    note right of MessageService: No email
+end
+
+
+C --> FE: Response
+
+FE --> User: Display status
+
+
+
+== User Ban Notification ==
+
+User -> FE: Attempt login
+
+
+FE -> Apache: POST /login
+
+
+alt Route exists
+    Apache -> MW: Forward
+else Route not found
+    Apache --> FE: 404
+
+    FE --> User: Error
+    
+end
+
+
+
+alt Valid request
+    MW -> C: Pass request
+else Validation error
+    MW --> FE: 422
+    FE --> User: Error
+
+end
+
+
+C -> ORM: Check user
+ORM -> DB: Query user
+
+alt User exists
+    DB --> ORM: Banned
+    ORM --> C: Status
+
+    C -> Email: Send ban email
+
+    alt Email success
+        Email -> Gmail: Send
+        Gmail --> Email: Delivered
+        Email --> C: OK
+    else Email failure
+        Email --> C: Failed
+    end
+
+
+    C --> FE: Access denied
+
+else User not found
+    DB --> ORM: Not found
+    ORM --> C: Error
+    C --> FE: 404
+
+else DB failure
+    DB --> ORM: Error
+    ORM --> C: Failure
+    C --> FE: 500
+end
+
+
+FE --> User: Display message
+@enduml

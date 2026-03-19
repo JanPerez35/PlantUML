@@ -1,0 +1,121 @@
+@startuml
+
+title User Login Authentication Sequence Diagram with Exceptions
+
+actor "User (Any)" as User
+
+participant "Frontend (Website)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "Controller" as C
+  participant "SAML Authentication Service" as S
+  participant "Role Service" as RS
+  participant "Eloquent ORM" as ORM
+end box
+
+participant "UPR Identity Provider\n(UPRM Auth Server)" as IdP
+database "MariaDB Database" as DB
+
+
+loop Login attempts
+
+User -> FE: Click Login (UPRM) option
+activate User
+activate FE
+activate Apache
+activate MW
+activate C
+activate S
+activate RS
+activate ORM
+activate IdP
+activate DB
+
+FE -> Apache: Send login request
+
+alt Route exists
+    Apache -> MW: Forward request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display error
+end
+
+alt Request valid
+    MW -> C: Pass login request
+else Validation / middleware error
+    MW --> FE: 4xx Error
+    FE --> User: Display error
+end
+
+C -> S: Request authentication
+S -> IdP: SAML Authentication Request
+
+alt IdP available
+    IdP --> User: Show UPR login page
+    User -> IdP: Enter UPRM credentials
+    IdP -> IdP: Verify credentials
+
+    alt Credentials valid
+        IdP --> S: SAML Assertion (authenticated user)
+        S -> S: Validate SAML assertion
+
+        alt Assertion valid
+            S --> C: Authenticated user
+            C -> ORM: Query user / role data
+            ORM -> DB: Select user record
+
+            alt User record found
+                DB --> ORM: User role data
+                ORM --> C: User data returned
+                C -> RS: Check user role
+                RS -> ORM: Request role
+
+                alt Role lookup success
+                    ORM --> RS: Role returned
+                    RS --> C: User role result
+                    C --> MW: Login success response
+                    MW --> Apache: Authenticated response
+                    Apache --> FE: Return authenticated response
+                    FE --> User: Redirect to role dashboard
+
+                else Role lookup failure
+                    ORM --> RS: Role lookup failed
+                    RS --> C: Role service error
+                    C --> FE: 500 Error
+                    FE --> User: Display system error
+                end
+
+            else User not registered
+                DB --> ORM: No user found
+                ORM --> C: User not registered
+                C --> MW: Denial response
+                MW --> Apache: Access denied response
+                Apache --> FE: Return denial response
+                FE --> User: Show denial message
+            end
+
+        else Assertion invalid
+            S --> C: Authentication failed
+            C --> FE: 401 Unauthorized
+            FE --> User: Show authentication error
+        end
+
+    else Invalid credentials
+        IdP --> S: Authentication failed
+        S --> C: Login denied
+        C --> FE: 401 Unauthorized
+        FE --> User: Show invalid credentials message
+    end
+
+else IdP unavailable
+    IdP --> S: Identity provider unavailable
+    S --> C: External authentication failure
+    C --> FE: 503 Service Unavailable
+    FE --> User: Show authentication service unavailable message
+end
+
+end
+
+@enduml
