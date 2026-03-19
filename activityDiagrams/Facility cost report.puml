@@ -1,0 +1,41 @@
+@startuml
+title Facility Cost Report
+
+|Super Admin or Facility Admin|
+start
+:Open facility cost report page;
+:Enter report criteria;
+:Submit request;
+
+|System|
+
+  if (Criteria valid?) then (Yes)
+
+    fork
+      :Retrieve facility cost data;
+    fork again
+      :Retrieve usage/category data;
+    end fork
+
+    :Calculate totals and breakdowns;
+    :Generate report;
+
+    fork
+      :Display report;
+    fork again
+      :Record report access in log;
+    end fork
+
+    if (Export requested?) then (Yes)
+      :Generate export file;
+      :Provide download;
+    else (No)  
+    endif
+
+  else (No)
+    :Show validation errors;
+  endif
+
+end
+
+@enduml

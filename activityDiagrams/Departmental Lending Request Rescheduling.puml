@@ -4,8 +4,7 @@ title Departmental Lending Request Rescheduling
 |User|
 start
 :Open lending request form;
-:Select item and available date;
-:Submit request;
+:Select item propse pickup date;
 
 |System|
 :Check request submission time;

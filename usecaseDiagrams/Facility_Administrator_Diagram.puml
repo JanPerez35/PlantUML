@@ -9,14 +9,19 @@ rectangle MAIKINE {
   usecase "Login" as UC_Login
   usecase "Log out" as UC_Logout
   usecase "Access\noperational\ncost report" as UC_OperationalCost
-  usecase "Download\nfacility operational cost as CSV" as UC_DownloadCost
+  usecase "Download\nfacility operational cost as CSV and/or PDF" as UC_DownloadCost
   usecase "Add facility\nlending event" as UC_AddEvent
   usecase "Delete\nfacility lending\nevent" as UC_DeleteEvent
   usecase "Search events" as UC_Search
   usecase "Filter events" as UC_Filter
+  usecase "Read/view Contact Information" as UC_ReadContact
   
   note right of (UC_Logout)
   Log out is an extend of all other views and usecases
+  end note
+
+  note bottom of (FacilityAdmin)
+  Facility Administratos do not edit facility cost rates.
   end note
 }
 
@@ -24,6 +29,7 @@ UC_Login <.. UC_Logout :<<extend>>
 FacilityAdmin -- UC_Login
 
 UC_Login <.. UC_OperationalCost : <<extend>>
+UC_Login <.. UC_ReadContact: <<extend>>
 
 UC_OperationalCost <.. UC_DownloadCost : <<extend>>
 UC_OperationalCost <.. UC_AddEvent : <<extend>>

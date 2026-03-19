@@ -8,9 +8,10 @@ rectangle MAIKINE {
 
   usecase "Login" as UC_Login
   usecase "Browse\nInventory\nManagement" as UC_InventoryMgmt
-  usecase "Add\ninventory" as UC_AddInventory
-  usecase "Update\nInventory" as UC_UpdateInventory
-  usecase "Remove\nfrom inventory" as UC_RemoveInventory
+  usecase "Add\n item to inventory" as UC_AddInventory
+  usecase "Delete item" as UC_Delete
+  usecase "Update\ninventory" as UC_UpdateInventory
+  usecase "Remove an item\nfrom inventory" as UC_RemoveInventory
   usecase "Approve\nrequests" as UC_ApproveRequests
   usecase "Deny\nrequests" as UC_DenyRequests
   usecase "View invetory statistics" as UC_ViewStatisitcs
@@ -18,10 +19,12 @@ rectangle MAIKINE {
   usecase "Browse\nDepartment\nInventory" as UC_DepLending
   usecase "Ban user" as UC_BanUser
   usecase "Search user" as UC_SearchUser
-  usecase "View Inventory" as UC_View
+  usecase "View inventory" as UC_View
   usecase "View requests" as UC_ViewRequest
   usecase "Search inventory" as UC_Search
   usecase "Filter inventory" as UC_Filter
+  usecase "Download PDF or CSV of statistics" as UC_Download
+  usecase "Read/view Contact Information" as UC_ReadContact
   usecase "Log out" as UC_Logout
 
   note right of (UC_Logout)
@@ -30,12 +33,12 @@ rectangle MAIKINE {
 
   note right of (UC_DenyRequests)
   If the user wishes to request an equipment for longer than one day 
-  the InventoryAdmin my deny the request
+  the InventoryAdmin may deny the request.
   end note
 
   note right of (UC_ApproveRequests)
   If the user wishes to request an equipment for longer than one day 
-  the InventoryAdmin my approve the request..
+  the InventoryAdmin may approve the request.
   end note
 
 
@@ -47,15 +50,18 @@ UC_Login <.. UC_Logout : <<extend>>
 UC_Login <.. UC_InventoryMgmt : <<extend>>
 UC_Login <.. UC_DepLending : <<extend>>
 UC_Login <.. UC_SearchUser : <<extend>>
+UC_Login <.. UC_ReadContact :<<extend>>
 
-UC_InventoryMgmt <.. UC_AddInventory : <<extend>>
-UC_InventoryMgmt <.. UC_RemoveInventory : <<extend>>
-UC_InventoryMgmt <.. UC_ApproveRequests : <<extend>>
-UC_InventoryMgmt <.. UC_DenyRequests : <<extend>>
+UC_View <.. UC_AddInventory : <<extend>>
+UC_View <.. UC_RemoveInventory : <<extend>>
+UC_View<..UC_Delete: <<extend>>
+UC_ViewRequest <.. UC_ApproveRequests : <<extend>>
+UC_ViewRequest <.. UC_DenyRequests : <<extend>>
 UC_InventoryMgmt <.. UC_ViewBorrowers : <<extend>>
 UC_InventoryMgmt <.. UC_View: <<extend>>
 UC_InventoryMgmt <.. UC_ViewRequest: <<extend>>
 UC_InventoryMgmt <.. UC_ViewStatisitcs : <<extend>>
+UC_ViewStatisitcs <.. UC_Download:: <<extend>>
 
 UC_AddInventory ..> UC_UpdateInventory : <<include>>
 UC_RemoveInventory ..> UC_UpdateInventory : <<include>>

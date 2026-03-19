@@ -1,0 +1,28 @@
+@startuml
+title Chat Messaging
+
+|User or Marketplace Admin|
+start
+:Open chat;
+:Type message;
+:Press send;
+
+|System|
+
+  if (Message sent?) then (Yes)
+    :Save message;
+
+    fork
+      :Update sender chat view;
+    fork again
+      :Mark message as unread for receiver;
+    fork again
+      :Broadcast new message event;
+    end fork
+
+  else (No)
+    :Show message error;
+  endif
+end
+
+@enduml

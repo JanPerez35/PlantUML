@@ -1,0 +1,25 @@
+@startuml
+title Access Log Recording Activity Diagram
+
+start
+:User performs system action;
+:Process action;
+
+if (Action successful?) then (Yes)
+  fork
+    :Return success response;
+  fork again
+    :Create success log entry;
+    :Store user, IP, event, comment, timestamp;
+  end fork
+else (No)
+  fork
+    :Return error response;
+  fork again
+    :Create failure log entry;
+    :Store user, IP, event, error comment, timestamp;
+  end fork
+endif
+
+end
+@enduml

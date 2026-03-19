@@ -1,7 +1,7 @@
 @startuml
 title SAML Authentication and Default Role Assignment
 
-|User|
+|End-User|
 start
 :Access MAIKINE;
 :Select login;

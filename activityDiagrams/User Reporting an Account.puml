@@ -21,14 +21,14 @@ while (Report invalid?) is (Yes)
 endwhile (No)
 
 :Store report in database;
-:Notify administrator;
+:Notify marketplace administrator;
 
 |Marketplace Administrator|
 :Review report;
 
 if (Violation confirmed?) then (Yes)
   |System|
-  :Ban or reach out to reported user account;
+  :Ban, delete post, and/or reach out to reported user account;
   :Log moderation action;
   :Mark report as resolved;
 else (No)
