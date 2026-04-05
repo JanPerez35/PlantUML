@@ -21,9 +21,10 @@ note left of DB
 It is assumed the Facility Admin is
 authenticated/authorized unless an exception occurs.
 end note
+
 == Adding Event ==
 
-Admin -> FE: Enter cost details (description, amount, date)
+Admin -> FE: Enter event cost details (description, amount, event date)
 activate Admin
 activate FE
 activate Apache
@@ -37,160 +38,160 @@ activate DB
 FE -> Apache: POST /addEvent
 
 alt Route exists
-    Apache -> MW: Forward request
+    Apache -> MW: Forward HTTP request to Laravel middleware
 else Route not found
     Apache --> FE: 404 Not Found
-    FE --> Admin: Display error
+    FE --> Admin: Display "Add event route not found" error
 end
 
 alt Valid + Authorized
-    MW -> C: Pass validated request
+    MW -> C: Pass validated and authorized event creation request
 else Validation/Auth error
-    MW --> FE: 4xx Error
-    FE --> Admin: Display error
+    MW --> FE: 422 Unprocessable Entity / 401 Unauthorized / 403 Forbidden
+    FE --> Admin: Display validation or authorization error
 end
 
-C -> Service: addEvent(cost data)
-Service -> ORM: Save new event entry
-ORM -> DB: Insert event record
+C -> Service: addEvent(eventCostData)
+Service -> ORM: createFacilityEvent(description, amount, eventDate)
+ORM -> DB: INSERT INTO facility_events (description, amount, event_date, created_by) VALUES (...)
 
 alt DB insert success
-    DB --> ORM: Event saved
-    ORM --> Service: Event persisted
-    Service --> C: Confirm event creation
-    C --> FE: Display confirmation
+    DB --> ORM: Insert successful
+    ORM --> Service: Facility event persisted
+    Service --> C: Event cost record created successfully
+    C --> FE: Return event creation success response
     FE --> Admin: Show "Event added successfully"
 else DB insert failure
-    DB --> ORM: Error
-    ORM --> Service: Persistence failed
-    Service --> C: 500 Error
-    C --> FE: Error response
-    FE --> Admin: Display system error
+    DB --> ORM: Insert failed / SQL exception
+    ORM --> Service: Facility event persistence failed
+    Service --> C: 500 Internal Server Error
+    C --> FE: Return "Unable to save event cost record" error response
+    FE --> Admin: Display system error while creating event
 end
 
 
 == Deleting Event ==
 
-Admin -> FE: Select event and click "Delete"
+Admin -> FE: Select event record and click "Delete"
 FE -> Apache: DELETE /deleteEvent/{eventId}
 
 alt Route exists
-    Apache -> MW: Forward request
+    Apache -> MW: Forward HTTP request to Laravel middleware
 else Route not found
     Apache --> FE: 404 Not Found
-    FE --> Admin: Display error
+    FE --> Admin: Display "Delete event route not found" error
 end
 
 alt Valid + Authorized
-    MW -> C: Pass validated request
+    MW -> C: Pass validated and authorized deletion request
 else Validation/Auth error
-    MW --> FE: 4xx Error
-    FE --> Admin: Display error
+    MW --> FE: 422 Unprocessable Entity / 401 Unauthorized / 403 Forbidden
+    FE --> Admin: Display validation or authorization error
 end
 
 C -> Service: deleteEvent(eventId)
-Service -> ORM: Remove event entry
-ORM -> DB: Delete event record
+Service -> ORM: deleteFacilityEventById(eventId)
+ORM -> DB: DELETE FROM facility_events WHERE event_id = ?
 
 alt DB delete success
-    DB --> ORM: Deletion confirmed
-    ORM --> Service: Event removed
-    Service --> C: Confirm deletion
-    C --> FE: Display deletion confirmation
+    DB --> ORM: Delete successful
+    ORM --> Service: Facility event removed
+    Service --> C: Event cost record deleted successfully
+    C --> FE: Return deletion success response
     FE --> Admin: Show "Cost deleted successfully"
 else DB delete failure
-    DB --> ORM: Error
-    ORM --> Service: Deletion failed
-    Service --> C: 500 Error
-    C --> FE: Error response
-    FE --> Admin: Display system error
+    DB --> ORM: Delete failed / SQL exception
+    ORM --> Service: Facility event deletion failed
+    Service --> C: 500 Internal Server Error
+    C --> FE: Return "Unable to delete event cost record" error response
+    FE --> Admin: Display system error while deleting event
 end
 
 
 == Pulling Data from EventFlow API ==
 
-Admin -> FE: Request external data
+Admin -> FE: Request synchronized EventFlow data
 FE -> Apache: GET /pullEventFlowData
 
 alt Route exists
-    Apache -> MW: Forward request
+    Apache -> MW: Forward HTTP request to Laravel middleware
 else Route not found
     Apache --> FE: 404 Not Found
-    FE --> Admin: Display error
+    FE --> Admin: Display "EventFlow sync route not found" error
 end
 
 alt Valid + Authorized
-    MW -> C: Pass validated request
+    MW -> C: Pass validated and authorized external data sync request
 else Validation/Auth error
-    MW --> FE: 4xx Error
-    FE --> Admin: Display error
+    MW --> FE: 422 Unprocessable Entity / 401 Unauthorized / 403 Forbidden
+    FE --> Admin: Display validation or authorization error
 end
 
 C -> Service: fetchEventFlowData()
-Service -> EventFlow: Request relevant data
+Service -> EventFlow: GET /events or relevant external dataset
 
 alt API request success
-    EventFlow --> Service: Return data
-    Service -> ORM: Save data locally
-    ORM -> DB: Insert imported data
+    EventFlow --> Service: Return external event and cost data
+    Service -> ORM: saveImportedEventFlowData(apiResponseData)
+    ORM -> DB: INSERT INTO imported_eventflow_data (...)
 
     alt DB insert success
-        DB --> ORM: Data saved
-        ORM --> Service: Data persisted
-        Service --> C: Return data
-        C --> FE: Display pulled data
-        FE --> Admin: Show event data
+        DB --> ORM: Import insert successful
+        ORM --> Service: Imported EventFlow data persisted
+        Service --> C: Return synchronized EventFlow dataset
+        C --> FE: Return pulled EventFlow data
+        FE --> Admin: Show imported event data
     else DB insert failure
-        DB --> ORM: Error
-        ORM --> Service: Persistence failed
-        Service --> C: 500 Error
-        C --> FE: Error response
-        FE --> Admin: Display system error
+        DB --> ORM: Insert failed / SQL exception
+        ORM --> Service: Imported data persistence failed
+        Service --> C: 500 Internal Server Error
+        C --> FE: Return "Unable to store imported EventFlow data" error response
+        FE --> Admin: Display system error during data import
     end
 
 else API unavailable / request failed
-    EventFlow --> Service: API error
-    Service --> C: External service failure
+    EventFlow --> Service: HTTP timeout / 5xx error / connection failure
+    Service --> C: External EventFlow service unavailable
     C --> FE: 503 Service Unavailable
-    FE --> Admin: Display EventFlow unavailable message
+    FE --> Admin: Display "EventFlow service is currently unavailable" message
 end
 
 
 == Downloading Report ==
 
-Admin -> FE: Download report
+Admin -> FE: Download facility cost report
 FE -> Apache: GET /downloadReport
 
 alt Route exists
-    Apache -> MW: Forward request
+    Apache -> MW: Forward HTTP request to Laravel middleware
 else Route not found
     Apache --> FE: 404 Not Found
-    FE --> Admin: Display error
+    FE --> Admin: Display "Download report route not found" error
 end
 
 alt Valid + Authorized
-    MW -> C: Pass validated request
+    MW -> C: Pass validated and authorized report download request
 else Validation/Auth error
-    MW --> FE: 4xx Error
-    FE --> Admin: Display error
+    MW --> FE: 422 Unprocessable Entity / 401 Unauthorized / 403 Forbidden
+    FE --> Admin: Display validation or authorization error
 end
 
-C -> Service: getReport()
-Service -> ORM: Query costs and imported data
-ORM -> DB: Select report from database
+C -> Service: getReport(reportType, dateRange)
+Service -> ORM: getFacilityCostReportData(reportFilters)
+ORM -> DB: SELECT * FROM facility_events_and_imported_data WHERE report_filters_apply
 
 alt DB query success
-    DB --> ORM: Report file
-    ORM --> Service: Report returned
-    Service --> C: Return report (CSV/PDF)
-    C --> FE: Deliver report
-    FE --> Admin: File downloaded
+    DB --> ORM: Report dataset returned
+    ORM --> Service: Report data loaded successfully
+    Service --> C: Return generated report file (CSV/PDF)
+    C --> FE: Stream report download response
+    FE --> Admin: File downloaded successfully
 else DB query failure
-    DB --> ORM: Error
-    ORM --> Service: Report generation failed
-    Service --> C: 500 Error
-    C --> FE: Error response
-    FE --> Admin: Display system error
+    DB --> ORM: Query failed / SQL exception
+    ORM --> Service: Report data retrieval failed
+    Service --> C: 500 Internal Server Error
+    C --> FE: Return "Unable to generate facility cost report" error response
+    FE --> Admin: Display system error during report download
 end
 
 @enduml

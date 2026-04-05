@@ -24,7 +24,7 @@ end note
 
 == Search Users ==
 
-User -> FE: Open "Search Users" tab
+User -> FE: Open "Search Users" page
 activate User
 activate FE
 activate Apache
@@ -37,111 +37,111 @@ activate DB
 FE -> Apache: GET /users
 
 alt Route exists
-    Apache -> MW: Forward request
+    Apache -> MW: Forward HTTP user search page request
 else Route not found
     Apache --> FE: 404 Not Found
-    FE --> User: Display error
+    FE --> User: Display "User search route not found" error
 end
 
 alt Valid + Authorized
-    MW -> C: Pass validated request
+    MW -> C: Pass validated and authorized user search request
 else Validation/Auth error
-    MW --> FE: 4xx Error
-    FE --> User: Display error
+    MW --> FE: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    FE --> User: Display validation or authorization error
 end
 
-C -> Service: getUsers()
-Service -> ORM: Query users
-ORM -> DB: Select users
+C -> Service: getUsers(searchQuery, filters, pagination)
+Service -> ORM: getUsersByNameOrEmail(searchQuery)
+ORM -> DB: SELECT id, name, email, role, profile_photo FROM users WHERE name LIKE ? OR email LIKE ? ORDER BY name ASC
 
 alt DB query success
-    DB --> ORM: User list
-    ORM --> Service: User collection
-    Service --> C: Return users
-    C --> FE: Display users
-    FE --> User: Show search results
+    DB --> ORM: Matching user result set
+    ORM --> Service: Filtered user collection returned
+    Service --> C: User search results
+    C --> FE: Return user search response
+    FE --> User: Show matching user profiles
 else DB query failure
-    DB --> ORM: Error
-    ORM --> Service: Query failed
-    Service --> C: 500 Error
-    C --> FE: Error response
-    FE --> User: Display system error
+    DB --> ORM: Query failed / SQL exception
+    ORM --> Service: User search retrieval failed
+    Service --> C: 500 Internal Server Error
+    C --> FE: Return "Unable to load user search results" error response
+    FE --> User: Display system error while searching users
 end
 
 
 == View Profile ==
 
-User -> FE: Click user profile
-FE -> Apache: GET /userProfile(userId)
+User -> FE: Click selected user profile
+FE -> Apache: GET /userProfile/{userId}
 
 alt Route exists
-    Apache -> MW: Forward request
+    Apache -> MW: Forward HTTP user profile request
 else Route not found
     Apache --> FE: 404 Not Found
-    FE --> User: Display error
+    FE --> User: Display "User profile route not found" error
 end
 
 alt Valid + Authorized
-    MW -> C: Pass validated request
+    MW -> C: Pass validated and authorized profile request
 else Validation/Auth error
-    MW --> FE: 4xx Error
-    FE --> User: Display error
+    MW --> FE: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    FE --> User: Display validation or authorization error
 end
 
 C -> Service: getUserProfile(userId)
-Service -> ORM: Query profile data
-ORM -> DB: Select profile data
+Service -> ORM: getUserProfileById(userId)
+ORM -> DB: SELECT id, name, email, role, bio, profile_photo, created_at FROM users WHERE id = ?
 
 alt DB query success
-    DB --> ORM: Profile info
-    ORM --> Service: Profile result
-    Service --> C: Return profile
-    C --> FE: Display profile
-    FE --> User: Show user profile
+    DB --> ORM: User profile record
+    ORM --> Service: Profile data returned
+    Service --> C: User profile details
+    C --> FE: Return profile response
+    FE --> User: Show selected user profile
 else DB query failure
-    DB --> ORM: Error
-    ORM --> Service: Query failed
-    Service --> C: 500 Error
-    C --> FE: Error response
-    FE --> User: Display system error
+    DB --> ORM: Query failed / SQL exception
+    ORM --> Service: User profile retrieval failed
+    Service --> C: 500 Internal Server Error
+    C --> FE: Return "Unable to load selected user profile" error response
+    FE --> User: Display system error while loading profile
 end
 
 
 == Optional Report ==
 
-User -> FE: Click "Report User"
+User -> FE: Click "Report User" and submit reason
 FE -> Apache: POST /reportUser
 
 alt Route exists
-    Apache -> MW: Forward request
+    Apache -> MW: Forward HTTP report user request
 else Route not found
     Apache --> FE: 404 Not Found
-    FE --> User: Display error
+    FE --> User: Display "Report user route not found" error
 end
 
 alt Valid + Authorized
-    MW -> C: Pass validated request
+    MW -> C: Pass validated and authorized report submission
 else Validation/Auth error
-    MW --> FE: 4xx Error
-    FE --> User: Display error
+    MW --> FE: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    FE --> User: Display validation or authorization error
 end
 
-C -> Service: createUserReport(userId, reason)
-Service -> ORM: Save report
-ORM -> DB: Insert report
+C -> Service: createUserReport(reportedUserId, reportedByUserId, reason)
+Service -> ORM: createUserReportRecord(reportedUserId, reportedByUserId, reason)
+ORM -> DB: INSERT INTO user_reports (reported_user_id, reported_by_user_id, reason, status, created_at) VALUES (...)
 
 alt DB insert success
-    DB --> ORM: Report saved
-    ORM --> Service: Report persisted
-    Service --> C: Report confirmed
-    C --> FE: Display confirmation
-    FE --> User: Show "Report submitted"
+    DB --> ORM: Insert successful
+    ORM --> Service: User report persisted
+    Service --> C: User report submitted successfully
+    C --> FE: Return report submission success response
+    FE --> User: Show "Report submitted successfully"
 else DB insert failure
-    DB --> ORM: Error
-    ORM --> Service: Persistence failed
-    Service --> C: 500 Error
-    C --> FE: Error response
-    FE --> User: Display system error
+    DB --> ORM: Insert failed / SQL exception
+    ORM --> Service: User report persistence failed
+    Service --> C: 500 Internal Server Error
+    C --> FE: Return "Unable to submit user report" error response
+    FE --> User: Display system error while submitting report
 end
 
 @enduml

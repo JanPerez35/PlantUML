@@ -30,9 +30,9 @@ authenticated/authorized unless an exception occurs.
 end note
 
 
-== Update Inventory (Add / Delete Item) ==
+== Update Inventory (Add / Delete / Update Item) ==
 
-Admin -> Frontend: Add or delete inventory item
+Admin -> Frontend: Submit add/delete/edit inventory item action
 activate Admin
 activate Frontend
 activate Apache
@@ -45,185 +45,111 @@ activate DB
 Frontend -> Apache: POST /admin/items/update
 
 alt Route exists
-    Apache -> MW: Forward request
+    Apache -> MW: Forward HTTP inventory update request
 else Route not found
     Apache --> Frontend: 404 Not Found
-    Frontend --> Admin: Display error
+    Frontend --> Admin: Display "Inventory update route not found" error
 end
 
 alt Valid + Authorized
-    MW -> C: Pass validated request
+    MW -> C: Pass validated and authorized inventory update request
 else Validation/Auth error
-    MW --> Frontend: 4xx Error
-    Frontend --> Admin: Display error
+    MW --> Frontend: 422 Unprocessable Entity / 401 Unauthorized / 403 Forbidden
+    Frontend --> Admin: Display validation or authorization error
 end
 
-C -> Service: updateInventory()
-Service -> ORM: Insert or delete item
-ORM -> DB: Insert or delete inventory record
+C -> Service: updateInventory(itemId, actionType, itemData)
+Service -> ORM: editInventoryItem(itemData) or createInventoryItem(itemData) or deleteInventoryItemById(itemId)
+ORM -> DB: INSERT INTO inventory_items (...) OR DELETE FROM inventory_items WHERE item_id = ?
 
 alt DB update success
-    DB --> ORM: Update success
-    ORM --> Service: Update persisted
-    Service --> C: Update confirmation
-    C --> Frontend: Response
-    Frontend --> Admin: Display update result
+    DB --> ORM: Insert/delete/update operation successful
+    ORM --> Service: Inventory update persisted
+    Service --> C: Inventory modification completed successfully
+    C --> Frontend: Return inventory update success response
+    Frontend --> Admin: Display inventory update result
 else DB update failure
-    DB --> ORM: Error
-    ORM --> Service: Update failed
-    Service --> C: 500 Error
-    C --> Frontend: Error response
-    Frontend --> Admin: Display system error
+    DB --> ORM: Insert/delete/update failed / SQL exception
+    ORM --> Service: Inventory update persistence failed
+    Service --> C: 500 Internal Server Error
+    C --> Frontend: Return "Unable to update inventory item" error response
+    Frontend --> Admin: Display system error while updating inventory
 end
 
 
-== Cancel Borrow or Special Request ==
+== Cancel Borrow of Special Request ==
 
-Admin -> Frontend: Cancel request
+Admin -> Frontend: Select borrow or special request to cancel
 Frontend -> Apache: POST /admin/cancelRequest
 
 alt Route exists
-    Apache -> MW: Forward request
+    Apache -> MW: Forward HTTP cancellation request
 else Route not found
     Apache --> Frontend: 404 Not Found
-    Frontend --> Admin: Display error
+    Frontend --> Admin: Display "Cancel request route not found" error
 end
 
 alt Valid + Authorized
-    MW -> C: Pass validated request
+    MW -> C: Pass validated and authorized cancellation request
 else Validation/Auth error
-    MW --> Frontend: 4xx Error
-    Frontend --> Admin: Display error
+    MW --> Frontend: 422 Unprocessable Entity / 401 Unauthorized / 403 Forbidden
+    Frontend --> Admin: Display validation or authorization error
 end
 
-C -> Service: cancelRequest()
-Service -> ORM: Update request status [Cancelled]
-ORM -> DB: Update request record
+C -> Service: cancelRequest(requestId, requestType)
+Service -> ORM: updateRequestStatusById(requestId, "Cancelled")
+ORM -> DB: UPDATE borrow_requests OR special_requests SET status = 'Cancelled' WHERE request_id = ?
 
 alt DB update success
-    DB --> ORM: Update success
-    ORM --> Service: Status updated
-    Service --> C: Cancellation confirmation
-    C --> Frontend: Response
-    Frontend --> Admin: Display confirmation
+    DB --> ORM: Status update successful
+    ORM --> Service: Request cancellation persisted
+    Service --> C: Request cancelled successfully
+    C --> Frontend: Return cancellation success response
+    Frontend --> Admin: Display cancellation confirmation
 else DB update failure
-    DB --> ORM: Error
-    ORM --> Service: Status update failed
-    Service --> C: 500 Error
-    C --> Frontend: Error response
-    Frontend --> Admin: Display system error
+    DB --> ORM: Update failed / SQL exception
+    ORM --> Service: Request status update failed
+    Service --> C: 500 Internal Server Error
+    C --> Frontend: Return "Unable to cancel selected request" error response
+    Frontend --> Admin: Display system error while cancelling request
 end
 
 
 == View and Download Inventory Statistics ==
 
-Admin -> Frontend: Request statistics
+Admin -> Frontend: Request inventory statistics report
 Frontend -> Apache: GET /admin/statistics
 
 alt Route exists
-    Apache -> MW: Forward request
+    Apache -> MW: Forward HTTP statistics request
 else Route not found
     Apache --> Frontend: 404 Not Found
-    Frontend --> Admin: Display error
+    Frontend --> Admin: Display "Inventory statistics route not found" error
 end
 
 alt Valid + Authorized
-    MW -> C: Pass validated request
+    MW -> C: Pass validated and authorized statistics request
 else Validation/Auth error
-    MW --> Frontend: 4xx Error
-    Frontend --> Admin: Display error
+    MW --> Frontend: 422 Unprocessable Entity / 401 Unauthorized / 403 Forbidden
+    Frontend --> Admin: Display validation or authorization error
 end
 
-C -> Service: generateStatistics()
-Service -> ORM: Query usage data
-ORM -> DB: Select inventory usage data
+C -> Service: generateStatistics(reportType, dateRange)
+Service -> ORM: getInventoryUsageStatistics(reportFilters)
+ORM -> DB: SELECT inventory usage metrics, borrow counts, and availability summaries FROM inventory-related tables
 
 alt DB query success
-    DB --> ORM: Inventory statistics
-    ORM --> Service: Statistics dataset
-    Service --> C: Statistics report
-    C --> Frontend: Report data
-    Frontend --> Admin: Display / Download report
+    DB --> ORM: Inventory statistics dataset
+    ORM --> Service: Statistics data loaded successfully
+    Service --> C: Generated inventory statistics report
+    C --> Frontend: Return report data / downloadable file
+    Frontend --> Admin: Display or download inventory statistics report
 else DB query failure
-    DB --> ORM: Error
-    ORM --> Service: Statistics query failed
-    Service --> C: 500 Error
-    C --> Frontend: Error response
-    Frontend --> Admin: Display system error
-end
-
-
-== Search and Ban User ==
-
-Admin -> Frontend: Search for user
-Frontend -> Apache: GET /admin/users?search
-
-alt Route exists
-    Apache -> MW: Forward request
-else Route not found
-    Apache --> Frontend: 404 Not Found
-    Frontend --> Admin: Display error
-end
-
-alt Valid + Authorized
-    MW -> C: Pass validated request
-else Validation/Auth error
-    MW --> Frontend: 4xx Error
-    Frontend --> Admin: Display error
-end
-
-C -> Service: searchUsers()
-Service -> ORM: Query users
-ORM -> DB: Select matching users
-
-alt DB query success
-    DB --> ORM: User list
-    ORM --> Service: User collection
-    Service --> C: User list
-    C --> Frontend: User results
-    Frontend --> Admin: Display users
-else DB query failure
-    DB --> ORM: Error
-    ORM --> Service: User query failed
-    Service --> C: 500 Error
-    C --> Frontend: Error response
-    Frontend --> Admin: Display system error
-end
-
-
-Admin -> Frontend: Select user and ban
-Frontend -> Apache: POST /admin/banUser
-
-alt Route exists
-    Apache -> MW: Forward request
-else Route not found
-    Apache --> Frontend: 404 Not Found
-    Frontend --> Admin: Display error
-end
-
-alt Valid + Authorized
-    MW -> C: Pass validated request
-else Validation/Auth error
-    MW --> Frontend: 4xx Error
-    Frontend --> Admin: Display error
-end
-
-C -> Service: banUser(userID)
-Service -> ORM: Update user status [Banned]
-ORM -> DB: Update user record
-
-alt DB update success
-    DB --> ORM: Update success
-    ORM --> Service: Ban persisted
-    Service --> C: Ban confirmation
-    C --> Frontend: Response
-    Frontend --> Admin: Display confirmation
-else DB update failure
-    DB --> ORM: Error
-    ORM --> Service: Ban update failed
-    Service --> C: 500 Error
-    C --> Frontend: Error response
-    Frontend --> Admin: Display system error
+    DB --> ORM: Query failed / SQL exception
+    ORM --> Service: Inventory statistics retrieval failed
+    Service --> C: 500 Internal Server Error
+    C --> Frontend: Return "Unable to generate inventory statistics report" error response
+    Frontend --> Admin: Display system error while loading statistics
 end
 
 @enduml

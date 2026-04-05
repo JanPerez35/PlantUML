@@ -32,7 +32,7 @@ end note
 
 == Admin Delete Any Post ==
 
-Admin -> FE: Select any post and delete
+Admin -> FE: Select marketplace post and trigger delete action
 activate Admin
 activate FE
 activate Apache
@@ -42,188 +42,188 @@ activate Service
 activate ORM
 activate DB
 
-FE -> Apache: DELETE /admin/deletePost(postId)
+FE -> Apache: DELETE /admin/deletePost/{postId}
 
 alt Route exists
-    Apache -> MW: Forward request
+    Apache -> MW: Forward HTTP delete post request
 else Route not found
     Apache --> FE: 404 Not Found
-    FE --> Admin: Display error
+    FE --> Admin: Display "Delete post route not found" error
 end
 
 alt Valid + Authorized
-    MW -> C: Pass validated request
+    MW -> C: Pass validated and authorized delete post request
 else Validation/Auth error
-    MW --> FE: 4xx Error
-    FE --> Admin: Display error
+    MW --> FE: 422 Unprocessable Entity / 401 Unauthorized / 403 Forbidden
+    FE --> Admin: Display validation or authorization error
 end
 
-C -> Service: deletePost(postId)
-Service -> ORM: Delete selected post
-ORM -> DB: Remove post record
+C -> Service: deletePostById(postId)
+Service -> ORM: deleteMarketplacePost(postId)
+ORM -> DB: DELETE FROM marketplace_posts WHERE post_id = ?
 
 alt DB delete success
-    DB --> ORM: Deletion success
-    ORM --> Service: Post removed
-    Service --> C: Confirm deletion
-    C --> FE: Update marketplace view
-    FE --> Admin: Show "Post removed"
+    DB --> ORM: Delete operation successful
+    ORM --> Service: Marketplace post removed
+    Service --> C: Post deletion completed successfully
+    C --> FE: Return updated marketplace state
+    FE --> Admin: Show "Post removed successfully"
 else DB delete failure
-    DB --> ORM: Error
-    ORM --> Service: Delete failed
-    Service --> C: 500 Error
-    C --> FE: Error response
-    FE --> Admin: Display system error
+    DB --> ORM: Delete failed / SQL exception
+    ORM --> Service: Marketplace post deletion failed
+    Service --> C: 500 Internal Server Error
+    C --> FE: Return "Unable to delete selected post" error response
+    FE --> Admin: Display system error while deleting post
 end
 
 
 == Search and Ban User ==
 
-Admin -> FE: Search user
-FE -> Apache: GET /admin/users?search
+Admin -> FE: Search for user by name
+FE -> Apache: GET /admin/users?search={query}
 
 alt Route exists
-    Apache -> MW: Forward request
+    Apache -> MW: Forward HTTP user search request
 else Route not found
     Apache --> FE: 404 Not Found
-    FE --> Admin: Display error
+    FE --> Admin: Display "User search route not found" error
 end
 
 alt Valid + Authorized
-    MW -> C: Pass validated request
+    MW -> C: Pass validated and authorized user search request
 else Validation/Auth error
-    MW --> FE: 4xx Error
-    FE --> Admin: Display error
+    MW --> FE: 422 Unprocessable Entity / 401 Unauthorized / 403 Forbidden
+    FE --> Admin: Display validation or authorization error
 end
 
-C -> Service: searchUsers()
-Service -> ORM: Query users
-ORM -> DB: Select matching users
+C -> Service: searchUsers(searchQuery)
+Service -> ORM: getUsersByName(searchQuery)
+ORM -> DB: SELECT id, name, role, is_banned FROM users WHERE name LIKE ? OR email LIKE ?
 
 alt DB query success
-    DB --> ORM: User list
-    ORM --> Service: User collection
-    Service --> C: Return users
-    C --> FE: Display users
-    FE --> Admin: Show user list
+    DB --> ORM: Matching user result set
+    ORM --> Service: User search results returned
+    Service --> C: Filtered user collection
+    C --> FE: Return user search results
+    FE --> Admin: Display matching users
 else DB query failure
-    DB --> ORM: Error
-    ORM --> Service: User query failed
-    Service --> C: 500 Error
-    C --> FE: Error response
-    FE --> Admin: Display system error
+    DB --> ORM: Query failed / SQL exception
+    ORM --> Service: User search query failed
+    Service --> C: 500 Internal Server Error
+    C --> FE: Return "Unable to search users" error response
+    FE --> Admin: Display system error while searching users
 end
 
 
-Admin -> FE: Ban selected user
+Admin -> FE: Select user and submit ban action
 FE -> Apache: POST /admin/banUser
 
 alt Route exists
-    Apache -> MW: Forward request
+    Apache -> MW: Forward HTTP ban user request
 else Route not found
     Apache --> FE: 404 Not Found
-    FE --> Admin: Display error
+    FE --> Admin: Display "Ban user route not found" error
 end
 
 alt Valid + Authorized
-    MW -> C: Pass validated request
+    MW -> C: Pass validated and authorized ban user request
 else Validation/Auth error
-    MW --> FE: 4xx Error
-    FE --> Admin: Display error
+    MW --> FE: 422 Unprocessable Entity / 401 Unauthorized / 403 Forbidden
+    FE --> Admin: Display validation or authorization error
 end
 
-C -> Service: banUser(userId)
-Service -> ORM: Update user status [Banned]
-ORM -> DB: Update user record
+C -> Service: banUserById(userId, banReason)
+Service -> ORM: updateUserBanStatus(userId, true)
+ORM -> DB: UPDATE users SET is_banned = 1, banned_at = CURRENT_TIMESTAMP, ban_reason = ? WHERE id = ?
 
 alt DB update success
-    DB --> ORM: Update success
-    ORM --> Service: Ban persisted
-    Service --> C: Ban confirmed
-    C --> FE: Response
-    FE --> Admin: Show "User banned"
+    DB --> ORM: Ban update successful
+    ORM --> Service: User ban persisted
+    Service --> C: User banned successfully
+    C --> FE: Return ban success response
+    FE --> Admin: Show "User banned successfully"
 else DB update failure
-    DB --> ORM: Error
-    ORM --> Service: Ban failed
-    Service --> C: 500 Error
-    C --> FE: Error response
-    FE --> Admin: Display system error
+    DB --> ORM: Update failed / SQL exception
+    ORM --> Service: User ban update failed
+    Service --> C: 500 Internal Server Error
+    C --> FE: Return "Unable to ban selected user" error response
+    FE --> Admin: Display system error while banning user
 end
 
 
 == View Flagged Reviews ==
 
-Admin -> FE: View flagged reviews
+Admin -> FE: Request flagged marketplace reviews
 FE -> Apache: GET /admin/reviews
 
 alt Route exists
-    Apache -> MW: Forward request
+    Apache -> MW: Forward HTTP flagged reviews request
 else Route not found
     Apache --> FE: 404 Not Found
-    FE --> Admin: Display error
+    FE --> Admin: Display "Flagged reviews route not found" error
 end
 
 alt Valid + Authorized
-    MW -> C: Pass validated request
+    MW -> C: Pass validated and authorized flagged review request
 else Validation/Auth error
-    MW --> FE: 4xx Error
-    FE --> Admin: Display error
+    MW --> FE: 422 Unprocessable Entity / 401 Unauthorized / 403 Forbidden
+    FE --> Admin: Display validation or authorization error
 end
 
 C -> Service: getFlaggedReviews()
-Service -> ORM: Query flagged reviews
-ORM -> DB: Select flagged reviews
+Service -> ORM: getReviewsByFlagStatus("flagged")
+ORM -> DB: SELECT * FROM reviews WHERE is_flagged = 1
 
 alt DB query success
-    DB --> ORM: Review list
-    ORM --> Service: Review collection
-    Service --> C: Return reviews
-    C --> FE: Display reviews
-    FE --> Admin: Show flagged reviews
+    DB --> ORM: Flagged review records
+    ORM --> Service: Flagged review dataset returned
+    Service --> C: Flagged review collection
+    C --> FE: Return flagged reviews
+    FE --> Admin: Display flagged reviews
 else DB query failure
-    DB --> ORM: Error
-    ORM --> Service: Review query failed
-    Service --> C: 500 Error
-    C --> FE: Error response
-    FE --> Admin: Display system error
+    DB --> ORM: Query failed / SQL exception
+    ORM --> Service: Flagged review query failed
+    Service --> C: 500 Internal Server Error
+    C --> FE: Return "Unable to retrieve flagged reviews" error response
+    FE --> Admin: Display system error while loading reviews
 end
 
 
 == Resolve Report ==
 
-Admin -> FE: Open report and resolve
+Admin -> FE: Open report and submit resolution action
 FE -> Apache: POST /admin/resolveReport
 
 alt Route exists
-    Apache -> MW: Forward request
+    Apache -> MW: Forward HTTP resolve report request
 else Route not found
     Apache --> FE: 404 Not Found
-    FE --> Admin: Display error
+    FE --> Admin: Display "Resolve report route not found" error
 end
 
 alt Valid + Authorized
-    MW -> C: Pass validated request
+    MW -> C: Pass validated and authorized report resolution request
 else Validation/Auth error
-    MW --> FE: 4xx Error
-    FE --> Admin: Display error
+    MW --> FE: 422 Unprocessable Entity / 401 Unauthorized / 403 Forbidden
+    FE --> Admin: Display validation or authorization error
 end
 
-C -> Service: resolveReport(reportId)
-Service -> ORM: Update report status [Resolved]
-ORM -> DB: Update report record
+C -> Service: resolveReportById(reportId, resolutionNotes)
+Service -> ORM: updateReportStatus(reportId, "Resolved")
+ORM -> DB: UPDATE reports SET status = 'Resolved', resolved_at = CURRENT_TIMESTAMP WHERE report_id = ?
 
 alt DB update success
-    DB --> ORM: Update success
-    ORM --> Service: Resolution persisted
-    Service --> C: Resolution confirmed
-    C --> FE: Response
-    FE --> Admin: Show "Report resolved"
+    DB --> ORM: Status update successful
+    ORM --> Service: Report resolution persisted
+    Service --> C: Report resolved successfully
+    C --> FE: Return resolution success response
+    FE --> Admin: Show "Report resolved successfully"
 else DB update failure
-    DB --> ORM: Error
-    ORM --> Service: Resolution failed
-    Service --> C: 500 Error
-    C --> FE: Error response
-    FE --> Admin: Display system error
+    DB --> ORM: Update failed / SQL exception
+    ORM --> Service: Report resolution update failed
+    Service --> C: 500 Internal Server Error
+    C --> FE: Return "Unable to resolve report" error response
+    FE --> Admin: Display system error while resolving report
 end
 
 @enduml

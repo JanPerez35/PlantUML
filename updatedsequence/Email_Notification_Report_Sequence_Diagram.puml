@@ -26,7 +26,7 @@ end note
 
 == Inventory Request Response ==
 
-User -> FE: Submit inventory request
+User -> FE: Submit borrow request form
 activate User
 activate FE
 activate Apache
@@ -43,12 +43,12 @@ FE -> Apache: POST /borrowRequest
 
 
 alt Route exists
-    Apache -> MW: Forward request
+    Apache -> MW: Forward HTTP request to Laravel middleware
    
 else Route not found
     Apache --> FE: 404 Not Found
 
-    FE --> User: Display error
+    FE --> User: Display "Borrow request route not found" error
     
     
 end
@@ -56,220 +56,220 @@ end
 
 
 alt Valid + Authorized
-    MW -> C: Pass validated request
+    MW -> C: Pass validated and authorized borrow request
     
 else Validation/Auth error
-    MW --> FE: 4xx Error
+    MW --> FE: 422 Unprocessable Entity / 401 Unauthorized / 403 Forbidden
     
-    FE --> User: Display error
+    FE --> User: Display validation or authorization error
    
 end
 
 
 
-C -> Service: createBorrowRequest()
+C -> Service: createBorrowRequest(requestData)
 
 
-Service -> ORM: Check availability
+Service -> ORM: checkItemAvailability(itemId)
 
-ORM -> DB: Query item
+ORM -> DB: SELECT quantity_available FROM inventory_items WHERE item_id = ?
 
 
 alt DB success
-    DB --> ORM: Result
+    DB --> ORM: Item availability result set
 else DB failure
-    DB --> ORM: Error
+    DB --> ORM: SQL/database exception
    
-    ORM --> Service: Failure
-    Service --> C: 500 Error
-    C --> FE: Error response
-    FE --> User: Display system error
+    ORM --> Service: Availability lookup failed
+    Service --> C: 500 Internal Server Error
+    C --> FE: Return "Unable to verify item availability" error response
+    FE --> User: Display system error: item availability could not be checked
   
 end
 
-ORM --> Service: Available?
+ORM --> Service: Item availability status
 
 alt Item available
 
-    Service -> ORM: Save request
-    ORM -> DB: Insert
+    Service -> ORM: createBorrowRequestRecord(userId, itemId, requestedQuantity)
+    ORM -> DB: INSERT INTO borrow_requests (...)
 
     alt Save success
-        DB --> ORM: OK
-        ORM --> Service: Persisted
+        DB --> ORM: Insert successful
+        ORM --> Service: Borrow request persisted
 
-        Service --> C: Approved
+        Service --> C: Borrow request created successfully
 
-        C -> Email: Send approval email
+        C -> Email: sendBorrowApprovalEmail(userEmail, requestDetails)
 
         alt Email success
-            Email -> Gmail: Send
-            Gmail --> Email: Delivered
-            Email --> C: Confirmed
+            Email -> Gmail: Send approval notification email
+            Gmail --> Email: Delivery accepted
+            Email --> C: Approval email sent successfully
         else Email failure
-            Email --> C: Failed
+            Email --> C: SMTP delivery failed for approval email
         end
 
 
     else Save failure
-        DB --> ORM: Error
-        ORM --> Service: Failed
-        Service --> C: 500 Error
+        DB --> ORM: Insert failed / SQL exception
+        ORM --> Service: Borrow request persistence failed
+        Service --> C: 500 Internal Server Error
     end
 
 else Item unavailable
 
-    Service --> C: Rejected
+    Service --> C: Borrow request rejected due to insufficient stock
 
-    C -> Email: Send rejection email
+    C -> Email: sendBorrowRejectionEmail(userEmail, itemId, rejectionReason)
 
     alt Email success
-        Email -> Gmail: Send
-        Gmail --> Email: Delivered
-        Email --> C: Confirmed
+        Email -> Gmail: Send rejection notification email
+        Gmail --> Email: Delivery accepted
+        Email --> C: Rejection email sent successfully
     else Email failure
-        Email --> C: Failed
+        Email --> C: SMTP delivery failed for rejection email
     end
 
 
 end
 
 
-C --> FE: Response
+C --> FE: Return borrow request processing result
 
-FE --> User: Display confirmation
+FE --> User: Display borrow request confirmation status
 
 
 
 == Message Reminder Email ==
 
-User -> FE: Open messages
+User -> FE: Open messages page
 
 
 FE -> Apache: GET /messages
 
 
 alt Route exists
-    Apache -> MW: Forward
+    Apache -> MW: Forward HTTP request
 else Route not found
-    Apache --> FE: 404
+    Apache --> FE: 404 Not Found
 
-    FE --> User: Display error
+    FE --> User: Display "Messages route not found" error
    
 end
 
 
 
 alt Authorized
-    MW -> C: Pass request
+    MW -> C: Pass authenticated message page request
 else Auth error
-    MW --> FE: 401/403
-    FE --> User: Display error
+    MW --> FE: 401 Unauthorized / 403 Forbidden
+    FE --> User: Display authentication or authorization error
   
 end
 
 
-C -> MessageService: check timeout
+C -> MessageService: checkMessageReminderTimeout(userId)
 
-MessageService -> ORM: Get timestamp
-ORM -> DB: Query
+MessageService -> ORM: getLastUnreadMessageTimestamp(userId)
+ORM -> DB: SELECT MAX(created_at) FROM messages WHERE recipient_id = ? AND is_read = 0
 
 alt DB success
-    DB --> ORM: Timestamp
+    DB --> ORM: Last unread message timestamp
 else DB failure
-    DB --> ORM: Error
-    ORM --> MessageService: Failed
-    MessageService --> C: 500
-    C --> FE: Error
-    FE --> User: Display error
+    DB --> ORM: SQL/database exception
+    ORM --> MessageService: Message timestamp lookup failed
+    MessageService --> C: 500 Internal Server Error
+    C --> FE: Return "Unable to check unread message timeout" error
+    FE --> User: Display system error while checking message reminders
   
 end
 
-ORM --> MessageService: Result
+ORM --> MessageService: Timestamp lookup result
 
 alt Timeout reached
 
-    MessageService -> Email: Send reminder
+    MessageService -> Email: sendUnreadMessageReminderEmail(userEmail, unreadMessageSummary)
 
     alt Email success
-        Email -> Gmail: Send
-        Gmail --> Email: Delivered
-        Email --> MessageService: OK
+        Email -> Gmail: Send unread message reminder email
+        Gmail --> Email: Delivery accepted
+        Email --> MessageService: Reminder email sent successfully
     else Email failure
-        Email --> MessageService: Failed
+        Email --> MessageService: SMTP delivery failed for reminder email
     end
 
 
 else No timeout
-    note right of MessageService: No email
+    note right of MessageService: No reminder email sent\nbecause timeout threshold was not reached
 end
 
 
-C --> FE: Response
+C --> FE: Return messages page response
 
-FE --> User: Display status
+FE --> User: Display message page status
 
 
 
 == User Ban Notification ==
 
-User -> FE: Attempt login
+User -> FE: Submit login form
 
 
 FE -> Apache: POST /login
 
 
 alt Route exists
-    Apache -> MW: Forward
+    Apache -> MW: Forward HTTP request
 else Route not found
-    Apache --> FE: 404
+    Apache --> FE: 404 Not Found
 
-    FE --> User: Error
+    FE --> User: Display "Login route not found" error
     
 end
 
 
 
 alt Valid request
-    MW -> C: Pass request
+    MW -> C: Pass validated login credentials
 else Validation error
-    MW --> FE: 422
-    FE --> User: Error
+    MW --> FE: 422 Unprocessable Entity
+    FE --> User: Display login form validation error
 
 end
 
 
-C -> ORM: Check user
-ORM -> DB: Query user
+C -> ORM: getUserByEmail(email)
+ORM -> DB: SELECT id, email, banned_at, status FROM users WHERE email = ?
 
 alt User exists
-    DB --> ORM: Banned
-    ORM --> C: Status
+    DB --> ORM: User record returned with banned status
+    ORM --> C: User lookup result
 
-    C -> Email: Send ban email
+    C -> Email: sendUserBannedNotificationEmail(userEmail, banReason)
 
     alt Email success
-        Email -> Gmail: Send
-        Gmail --> Email: Delivered
-        Email --> C: OK
+        Email -> Gmail: Send banned account notification email
+        Gmail --> Email: Delivery accepted
+        Email --> C: Ban notification email sent successfully
     else Email failure
-        Email --> C: Failed
+        Email --> C: SMTP delivery failed for ban notification
     end
 
 
-    C --> FE: Access denied
+    C --> FE: Return access denied response for banned user
 
 else User not found
-    DB --> ORM: Not found
-    ORM --> C: Error
-    C --> FE: 404
+    DB --> ORM: Empty result set
+    ORM --> C: User not found
+    C --> FE: 404 User account not found
 
 else DB failure
-    DB --> ORM: Error
-    ORM --> C: Failure
-    C --> FE: 500
+    DB --> ORM: SQL/database exception
+    ORM --> C: User lookup failed
+    C --> FE: 500 Internal Server Error
 end
 
 
-FE --> User: Display message
+FE --> User: Display login or account status message
 @enduml

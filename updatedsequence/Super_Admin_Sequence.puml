@@ -34,7 +34,7 @@ end note
 
 == Assign / Update / Remove User Role ==
 
-Admin -> FE: Search user and assign/update/remove role
+Admin -> FE: Search for user and submit role assignment change
 activate Admin
 activate FE
 activate Apache
@@ -47,155 +47,155 @@ activate DB
 FE -> Apache: POST /admin/updateUserRole
 
 alt Route exists
-    Apache -> MW: Forward request
+    Apache -> MW: Forward HTTP role update request
 else Route not found
     Apache --> FE: 404 Not Found
-    FE --> Admin: Display error
+    FE --> Admin: Display "User role update route not found" error
 end
 
 alt Valid + Authorized
-    MW -> C: Pass validated request
+    MW -> C: Pass validated and authorized role update request
 else Validation/Auth error
-    MW --> FE: 4xx Error
-    FE --> Admin: Display error
+    MW --> FE: 422 Unprocessable Entity / 401 Unauthorized / 403 Forbidden
+    FE --> Admin: Display validation or authorization error
 end
 
 C -> Service: updateUserRole(userId, role)
-Service -> ORM: Query user
-ORM -> DB: Select user record
+Service -> ORM: getUserById(userId)
+ORM -> DB: SELECT id, name, email, role FROM users WHERE id = ?
 
 alt User query success
-    DB --> ORM: User found
-    ORM --> Service: User entity
+    DB --> ORM: User record lookup result
+    ORM --> Service: User entity loaded
 
     alt User exists
-        Service -> ORM: Update role assignment
-        ORM -> DB: Update user role
+        Service -> ORM: updateUserRoleById(userId, role)
+        ORM -> DB: UPDATE users SET role = ? WHERE id = ?
 
         alt Role update success
-            DB --> ORM: Role updated
-            ORM --> Service: Role persisted
-            Service --> C: Role update confirmed
-            C --> FE: Display confirmation
-            FE --> Admin: Show "User role updated"
+            DB --> ORM: Role update successful
+            ORM --> Service: Role assignment persisted
+            Service --> C: User role updated successfully
+            C --> FE: Return role update success response
+            FE --> Admin: Show "User role updated successfully"
         else Role update failure
-            DB --> ORM: Error
-            ORM --> Service: Role update failed
-            Service --> C: 500 Error
-            C --> FE: Error response
-            FE --> Admin: Display system error
+            DB --> ORM: Update failed / SQL exception
+            ORM --> Service: User role update failed
+            Service --> C: 500 Internal Server Error
+            C --> FE: Return "Unable to update selected user role" error response
+            FE --> Admin: Display system error while updating user role
         end
 
     else User not found
-        Service --> C: User not found
+        Service --> C: User account not found
         C --> FE: 404 User Not Found
-        FE --> Admin: Display user not found message
+        FE --> Admin: Display "Selected user does not exist" message
     end
 
 else User query failure
-    DB --> ORM: Error
+    DB --> ORM: Query failed / SQL exception
     ORM --> Service: User lookup failed
-    Service --> C: 500 Error
-    C --> FE: Error response
-    FE --> Admin: Display system error
+    Service --> C: 500 Internal Server Error
+    C --> FE: Return "Unable to retrieve selected user" error response
+    FE --> Admin: Display system error while loading user
 end
 
 
 == Modify Facility Cost Certificate ==
 
-Admin -> FE: Update cost report formula
+Admin -> FE: Submit updated cost certificate formula or configuration
 FE -> Apache: POST /admin/updateCostCertificate
 
 alt Route exists
-    Apache -> MW: Forward request
+    Apache -> MW: Forward HTTP certificate update request
 else Route not found
     Apache --> FE: 404 Not Found
-    FE --> Admin: Display error
+    FE --> Admin: Display "Cost certificate update route not found" error
 end
 
 alt Valid + Authorized
-    MW -> C: Pass validated request
+    MW -> C: Pass validated and authorized certificate update request
 else Validation/Auth error
-    MW --> FE: 4xx Error
-    FE --> Admin: Display error
+    MW --> FE: 422 Unprocessable Entity / 401 Unauthorized / 403 Forbidden
+    FE --> Admin: Display validation or authorization error
 end
 
-C -> Service: updateCostCertificate
-Service -> ORM: Store new Certificate
-ORM -> DB: Update certificate configuration
+C -> Service: updateCostCertificate(certificateConfig)
+Service -> ORM: updateCostCertificateConfiguration(certificateConfig)
+ORM -> DB: UPDATE certificate_settings SET formula = ?, configuration = ?, updated_at = CURRENT_TIMESTAMP WHERE certificate_type = 'facility_cost'
 
 alt Certificate update success
-    DB --> ORM: Certificate saved
-    ORM --> Service: Certificate persisted
-    Service --> C: Update confirmed
-    C --> FE: Display confirmation
-    FE --> Admin: Show "Cost Certificate updated"
+    DB --> ORM: Certificate configuration update successful
+    ORM --> Service: Certificate configuration persisted
+    Service --> C: Cost certificate updated successfully
+    C --> FE: Return certificate update success response
+    FE --> Admin: Show "Cost Certificate updated successfully"
 else Certificate update failure
-    DB --> ORM: Error
-    ORM --> Service: Certificate update failed
-    Service --> C: 500 Error
-    C --> FE: Error response
-    FE --> Admin: Display system error
+    DB --> ORM: Update failed / SQL exception
+    ORM --> Service: Certificate configuration update failed
+    Service --> C: 500 Internal Server Error
+    C --> FE: Return "Unable to update cost certificate configuration" error response
+    FE --> Admin: Display system error while updating certificate
 end
 
 
 == Ban / Unban User ==
 
-Admin -> FE: Ban or Unban selected user
+Admin -> FE: Submit ban or unban action for selected user
 FE -> Apache: POST /admin/updateUserStatus
 
 alt Route exists
-    Apache -> MW: Forward request
+    Apache -> MW: Forward HTTP user status update request
 else Route not found
     Apache --> FE: 404 Not Found
-    FE --> Admin: Display error
+    FE --> Admin: Display "User status update route not found" error
 end
 
 alt Valid + Authorized
-    MW -> C: Pass validated request
+    MW -> C: Pass validated and authorized user status update request
 else Validation/Auth error
-    MW --> FE: 4xx Error
-    FE --> Admin: Display error
+    MW --> FE: 422 Unprocessable Entity / 401 Unauthorized / 403 Forbidden
+    FE --> Admin: Display validation or authorization error
 end
 
 C -> Service: updateUserStatus(userId, status)
-Service -> ORM: Query user
-ORM -> DB: Select user record
+Service -> ORM: getUserById(userId)
+ORM -> DB: SELECT id, name, email, is_banned, banned_at FROM users WHERE id = ?
 
 alt User query success
-    DB --> ORM: User found
-    ORM --> Service: User entity
+    DB --> ORM: User record lookup result
+    ORM --> Service: User entity loaded
 
     alt User exists
-        Service -> ORM: Update user status (banned/unbanned)
-        ORM -> DB: Update user status
+        Service -> ORM: updateUserBanStatus(userId, status)
+        ORM -> DB: UPDATE users SET is_banned = ?, banned_at = CASE WHEN ? = 1 THEN CURRENT_TIMESTAMP ELSE NULL END WHERE id = ?
 
         alt Status update success
-            DB --> ORM: Status updated
-            ORM --> Service: Status persisted
-            Service --> C: Status update confirmed
-            C --> FE: Display confirmation
-            FE --> Admin: Show "User status updated"
+            DB --> ORM: User status update successful
+            ORM --> Service: Ban/unban status persisted
+            Service --> C: User status updated successfully
+            C --> FE: Return status update success response
+            FE --> Admin: Show "User status updated successfully"
         else Status update failure
-            DB --> ORM: Error
-            ORM --> Service: Status update failed
-            Service --> C: 500 Error
-            C --> FE: Error response
-            FE --> Admin: Display system error
+            DB --> ORM: Update failed / SQL exception
+            ORM --> Service: User status update failed
+            Service --> C: 500 Internal Server Error
+            C --> FE: Return "Unable to update selected user status" error response
+            FE --> Admin: Display system error while updating user status
         end
 
     else User not found
-        Service --> C: User not found
+        Service --> C: User account not found
         C --> FE: 404 User Not Found
-        FE --> Admin: Display user not found message
+        FE --> Admin: Display "Selected user does not exist" message
     end
 
 else User query failure
-    DB --> ORM: Error
+    DB --> ORM: Query failed / SQL exception
     ORM --> Service: User lookup failed
-    Service --> C: 500 Error
-    C --> FE: Error response
-    FE --> Admin: Display system error
+    Service --> C: 500 Internal Server Error
+    C --> FE: Return "Unable to retrieve selected user" error response
+    FE --> Admin: Display system error while loading user
 end
 
 @enduml

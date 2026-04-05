@@ -21,7 +21,7 @@ database "MariaDB Database" as DB
 
 loop Login attempts
 
-User -> FE: Click Login (UPRM) option
+User -> FE: Click "Login with UPRM" button
 activate User
 activate FE
 activate Apache
@@ -33,87 +33,87 @@ activate ORM
 activate IdP
 activate DB
 
-FE -> Apache: Send login request
+FE -> Apache: GET /auth/saml/login
 
 alt Route exists
-    Apache -> MW: Forward request
+    Apache -> MW: Forward HTTP authentication request
 else Route not found
     Apache --> FE: 404 Not Found
-    FE --> User: Display error
+    FE --> User: Display "SAML login route not found" error
 end
 
 alt Request valid
-    MW -> C: Pass login request
+    MW -> C: Pass validated login request
 else Validation / middleware error
-    MW --> FE: 4xx Error
-    FE --> User: Display error
+    MW --> FE: 400 Bad Request / 419 CSRF Token Mismatch / 403 Forbidden
+    FE --> User: Display login request or middleware validation error
 end
 
-C -> S: Request authentication
-S -> IdP: SAML Authentication Request
+C -> S: redirectToIdentityProvider()
+S -> IdP: Send SAML authentication request
 
 alt IdP available
-    IdP --> User: Show UPR login page
-    User -> IdP: Enter UPRM credentials
-    IdP -> IdP: Verify credentials
+    IdP --> User: Display UPRM login form
+    User -> IdP: Submit institutional username and password
+    IdP -> IdP: Validate credentials against identity store
 
     alt Credentials valid
-        IdP --> S: SAML Assertion (authenticated user)
-        S -> S: Validate SAML assertion
+        IdP --> S: Return SAML assertion for authenticated user
+        S -> S: validateSamlAssertion(assertionPayload)
 
         alt Assertion valid
-            S --> C: Authenticated user
-            C -> ORM: Query user / role data
-            ORM -> DB: Select user record
+            S --> C: Return authenticated user identity payload
+            C -> ORM: getUserByEmailOrInstitutionalId(userIdentifier)
+            ORM -> DB: SELECT id, email, role, auth_type, banned_at FROM users WHERE email = ? OR institutional_id = ?
 
             alt User record found
-                DB --> ORM: User role data
-                ORM --> C: User data returned
-                C -> RS: Check user role
-                RS -> ORM: Request role
+                DB --> ORM: User account and role data
+                ORM --> C: User lookup result
+                C -> RS: resolveUserRole(userId)
+                RS -> ORM: getRoleByUserId(userId)
 
                 alt Role lookup success
-                    ORM --> RS: Role returned
-                    RS --> C: User role result
-                    C --> MW: Login success response
-                    MW --> Apache: Authenticated response
-                    Apache --> FE: Return authenticated response
-                    FE --> User: Redirect to role dashboard
+                    ORM --> RS: Role record returned
+                    RS --> C: Authorized role resolution result
+                    C --> MW: Return authenticated session response
+                    MW --> Apache: Attach session/cookie and redirect response
+                    Apache --> FE: Return authenticated redirect response
+                    FE --> User: Redirect to assigned role dashboard
 
                 else Role lookup failure
-                    ORM --> RS: Role lookup failed
-                    RS --> C: Role service error
-                    C --> FE: 500 Error
-                    FE --> User: Display system error
+                    ORM --> RS: Role query failed / no role mapping found
+                    RS --> C: Role resolution service error
+                    C --> FE: 500 Internal Server Error
+                    FE --> User: Display "Unable to determine user role" system error
                 end
 
             else User not registered
-                DB --> ORM: No user found
-                ORM --> C: User not registered
-                C --> MW: Denial response
-                MW --> Apache: Access denied response
+                DB --> ORM: Empty result set
+                ORM --> C: No matching local user account found
+                C --> MW: Return access denial response
+                MW --> Apache: Deny authenticated login attempt
                 Apache --> FE: Return denial response
-                FE --> User: Show denial message
+                FE --> User: Show "Authenticated user is not registered in MAIKINE" message
             end
 
         else Assertion invalid
-            S --> C: Authentication failed
+            S --> C: SAML assertion validation failed
             C --> FE: 401 Unauthorized
-            FE --> User: Show authentication error
+            FE --> User: Show "Invalid or expired SAML assertion" authentication error
         end
 
     else Invalid credentials
-        IdP --> S: Authentication failed
-        S --> C: Login denied
+        IdP --> S: Authentication rejected by identity provider
+        S --> C: External login denied
         C --> FE: 401 Unauthorized
-        FE --> User: Show invalid credentials message
+        FE --> User: Show "Invalid UPRM credentials" message
     end
 
 else IdP unavailable
-    IdP --> S: Identity provider unavailable
-    S --> C: External authentication failure
+    IdP --> S: Identity provider timeout / connection failure / 5xx error
+    S --> C: External authentication service unavailable
     C --> FE: 503 Service Unavailable
-    FE --> User: Show authentication service unavailable message
+    FE --> User: Show "UPRM authentication service is currently unavailable" message
 end
 
 end

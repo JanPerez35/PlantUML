@@ -39,95 +39,95 @@ activate DB
 FE -> Apache: GET /user/posts
 
 alt Route exists
-    Apache -> MW: Forward request
+    Apache -> MW: Forward HTTP user posts request
 else Route not found
     Apache --> FE: 404 Not Found
-    FE --> User: Display error
+    FE --> User: Display "User posts route not found" error
 end
 
 alt Valid + Authorized
-    MW -> C: Pass validated request
+    MW -> C: Pass validated and authorized posts request
 else Validation/Auth error
-    MW --> FE: 4xx Error
-    FE --> User: Display error
+    MW --> FE: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    FE --> User: Display validation or authorization error
 end
 
-C -> Service: getUserPosts(userId)
-Service -> ORM: Query posts by userId
-ORM -> DB: Select user posts
+C -> Service: getUserPosts(userId, filters, pagination)
+Service -> ORM: getMarketplacePostsByUserId(userId)
+ORM -> DB: SELECT * FROM marketplace_posts WHERE user_id = ? ORDER BY created_at DESC
 
 alt DB query success
-    DB --> ORM: List of posts
-    ORM --> Service: Post collection
-    Service --> C: Return posts
-    C --> FE: Return posts
-    FE --> User: Show posts
+    DB --> ORM: User post result set
+    ORM --> Service: User post collection returned
+    Service --> C: Marketplace posts for authenticated user
+    C --> FE: Return user posts response
+    FE --> User: Show personal post list
 else DB query failure
-    DB --> ORM: Error
-    ORM --> Service: Query failed
-    Service --> C: 500 Error
-    C --> FE: Error response
-    FE --> User: Display system error
+    DB --> ORM: Query failed / SQL exception
+    ORM --> Service: User post retrieval failed
+    Service --> C: 500 Internal Server Error
+    C --> FE: Return "Unable to load user posts" error response
+    FE --> User: Display system error while loading posts
 end
 
 
 == Delete a Post ==
 
-User -> FE: Click "Delete" on post
+User -> FE: Click "Delete" on selected post
 FE -> Apache: DELETE /post/{postId}
 
 alt Route exists
-    Apache -> MW: Forward delete request
+    Apache -> MW: Forward HTTP delete post request
 else Route not found
     Apache --> FE: 404 Not Found
-    FE --> User: Display error
+    FE --> User: Display "Delete post route not found" error
 end
 
 alt Valid + Authorized
-    MW -> C: Pass validated request
+    MW -> C: Pass validated and authorized delete request
 else Validation/Auth error
-    MW --> FE: 4xx Error
-    FE --> User: Display error
+    MW --> FE: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    FE --> User: Display validation or authorization error
 end
 
-C -> Service: deletePost(postId)
-Service -> ORM: Verify post owner
-ORM -> DB: Query post owner
+C -> Service: deletePost(postId, userId)
+Service -> ORM: getPostOwnerById(postId)
+ORM -> DB: SELECT user_id FROM marketplace_posts WHERE post_id = ?
 
 alt Ownership query success
-    DB --> ORM: Ownership result
-    ORM --> Service: Ownership status
+    DB --> ORM: Post ownership result
+    ORM --> Service: Ownership lookup returned
 
     alt User is owner
-        Service -> ORM: Delete post
-        ORM -> DB: Remove post record
+        Service -> ORM: deleteMarketplacePostById(postId)
+        ORM -> DB: DELETE FROM marketplace_posts WHERE post_id = ?
 
         alt DB delete success
-            DB --> ORM: Deletion confirmed
-            ORM --> Service: Post removed
-            Service --> C: Confirm deletion
-            C --> FE: Confirm deletion
-            FE --> User: Display deletion confirmation
+            DB --> ORM: Delete successful
+            ORM --> Service: Marketplace post removed
+            Service --> C: Post deletion confirmed
+            C --> FE: Return deletion success response
+            FE --> User: Display "Post deleted successfully"
         else DB delete failure
-            DB --> ORM: Error
-            ORM --> Service: Delete failed
-            Service --> C: 500 Error
-            C --> FE: Error response
-            FE --> User: Display system error
+            DB --> ORM: Delete failed / SQL exception
+            ORM --> Service: Post deletion failed
+            Service --> C: 500 Internal Server Error
+            C --> FE: Return "Unable to delete selected post" error response
+            FE --> User: Display system error while deleting post
         end
 
     else User is not owner
-        Service --> C: Access denied
+        Service --> C: Post ownership validation failed
         C --> FE: 403 Forbidden
-        FE --> User: Show ownership error
+        FE --> User: Show "You can only delete your own posts" error
     end
 
 else Ownership query failure
-    DB --> ORM: Error
-    ORM --> Service: Ownership check failed
-    Service --> C: 500 Error
-    C --> FE: Error response
-    FE --> User: Display system error
+    DB --> ORM: Query failed / SQL exception
+    ORM --> Service: Ownership verification failed
+    Service --> C: 500 Internal Server Error
+    C --> FE: Return "Unable to verify post ownership" error response
+    FE --> User: Display system error while validating ownership
 end
 
 
@@ -137,35 +137,35 @@ User -> FE: Open "Messages"
 FE -> Apache: GET /user/messages
 
 alt Route exists
-    Apache -> MW: Forward request
+    Apache -> MW: Forward HTTP user messages request
 else Route not found
     Apache --> FE: 404 Not Found
-    FE --> User: Display error
+    FE --> User: Display "User messages route not found" error
 end
 
 alt Valid + Authorized
-    MW -> C: Pass validated request
+    MW -> C: Pass validated and authorized messages request
 else Validation/Auth error
-    MW --> FE: 4xx Error
-    FE --> User: Display error
+    MW --> FE: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    FE --> User: Display validation or authorization error
 end
 
-C -> MessageService: getUserMessages(userId)
-MessageService -> ORM: Query messages by userId
-ORM -> DB: Select user messages
+C -> MessageService: getUserMessages(userId, filters, pagination)
+MessageService -> ORM: getMessagesByParticipantId(userId)
+ORM -> DB: SELECT * FROM messages WHERE sender_id = ? OR recipient_id = ? ORDER BY created_at DESC
 
 alt DB query success
-    DB --> ORM: List of messages
-    ORM --> MessageService: Message collection
-    MessageService --> C: Return messages
-    C --> FE: Display messages
-    FE --> User: Show messages
+    DB --> ORM: User message result set
+    ORM --> MessageService: Message collection returned
+    MessageService --> C: User conversation messages
+    C --> FE: Return user messages response
+    FE --> User: Show message list
 else DB query failure
-    DB --> ORM: Error
-    ORM --> MessageService: Query failed
-    MessageService --> C: 500 Error
-    C --> FE: Error response
-    FE --> User: Display system error
+    DB --> ORM: Query failed / SQL exception
+    ORM --> MessageService: Message retrieval failed
+    MessageService --> C: 500 Internal Server Error
+    C --> FE: Return "Unable to load user messages" error response
+    FE --> User: Display system error while loading messages
 end
 
 
@@ -175,35 +175,35 @@ User -> FE: Open "My Requests"
 FE -> Apache: GET /user/requests
 
 alt Route exists
-    Apache -> MW: Forward request
+    Apache -> MW: Forward HTTP user request history request
 else Route not found
     Apache --> FE: 404 Not Found
-    FE --> User: Display error
+    FE --> User: Display "User requests route not found" error
 end
 
 alt Valid + Authorized
-    MW -> C: Pass validated request
+    MW -> C: Pass validated and authorized request history request
 else Validation/Auth error
-    MW --> FE: 4xx Error
-    FE --> User: Display error
+    MW --> FE: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    FE --> User: Display validation or authorization error
 end
 
-C -> Service: getUserRequests(userId)
-Service -> ORM: Query borrow/lend requests
-ORM -> DB: Select user requests
+C -> Service: getUserRequests(userId, requestType, filters)
+Service -> ORM: getBorrowAndLendRequestsByUserId(userId)
+ORM -> DB: SELECT * FROM borrow_requests WHERE user_id = ? UNION SELECT * FROM lend_requests WHERE user_id = ?
 
 alt DB query success
-    DB --> ORM: List of requests
-    ORM --> Service: Request collection
-    Service --> C: Return requests
-    C --> FE: Display requests
-    FE --> User: Show request statuses
+    DB --> ORM: User request history result set
+    ORM --> Service: Borrow/lend request collection returned
+    Service --> C: User request history
+    C --> FE: Return request status response
+    FE --> User: Show borrow/lend request statuses
 else DB query failure
-    DB --> ORM: Error
-    ORM --> Service: Query failed
-    Service --> C: 500 Error
-    C --> FE: Error response
-    FE --> User: Display system error
+    DB --> ORM: Query failed / SQL exception
+    ORM --> Service: User request retrieval failed
+    Service --> C: 500 Internal Server Error
+    C --> FE: Return "Unable to load user requests" error response
+    FE --> User: Display system error while loading requests
 end
 
 @enduml

@@ -25,7 +25,7 @@ end note
 
 == Viewing Posts ==
 
-User -> FE: Browse marketplace
+User -> FE: Browse marketplace listings
 activate User
 activate FE
 activate Apache
@@ -36,224 +36,224 @@ activate MessageService
 activate ORM
 activate DB
 
-FE -> Apache: Request /posts
+FE -> Apache: GET /posts
 
 alt Route exists
-    Apache -> MW: Forward request
+    Apache -> MW: Forward HTTP marketplace listing request
 else Route not found
     Apache --> FE: 404 Not Found
-    FE --> User: Display error
+    FE --> User: Display "Marketplace posts route not found" error
 end
 
 alt Valid + Authorized
-    MW -> C: Pass validated request
+    MW -> C: Pass validated and authorized posts request
 else Validation/Auth error
-    MW --> FE: 4xx Error
-    FE --> User: Display error
+    MW --> FE: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    FE --> User: Display validation or authorization error
 end
 
-C -> Service: getPosts()
-Service -> ORM: Retrieve all posts
-ORM -> DB: Query all posts
+C -> Service: getMarketplacePosts(filters, pagination)
+Service -> ORM: getActivePostsOrderedByCreatedAt()
+ORM -> DB: SELECT * FROM marketplace_posts WHERE status = 'active' ORDER BY created_at DESC
 
 alt DB query success
-    DB --> ORM: Post records
-    ORM --> Service: Post collection
-    Service --> C: Return posts
-    C --> FE: Display posts
-    FE --> User: Show post list
+    DB --> ORM: Marketplace post result set
+    ORM --> Service: Active marketplace posts returned
+    Service --> C: Marketplace post collection
+    C --> FE: Return post listing response
+    FE --> User: Show marketplace post list
 else DB query failure
-    DB --> ORM: Error
-    ORM --> Service: Query failed
-    Service --> C: 500 Error
-    C --> FE: Error response
-    FE --> User: Display system error
+    DB --> ORM: Query failed / SQL exception
+    ORM --> Service: Marketplace post retrieval failed
+    Service --> C: 500 Internal Server Error
+    C --> FE: Return "Unable to load marketplace posts" error response
+    FE --> User: Display system error while loading posts
 end
 
 
 == Creating a Post ==
 
-User -> FE: Create new post (title, description, price)
+User -> FE: Submit new post (title, description, price)
 FE -> Apache: POST /createPost
 
 alt Route exists
-    Apache -> MW: Forward request
+    Apache -> MW: Forward HTTP create post request
 else Route not found
     Apache --> FE: 404 Not Found
-    FE --> User: Display error
+    FE --> User: Display "Create post route not found" error
 end
 
 alt Valid + Authorized
-    MW -> C: Pass validated request
+    MW -> C: Pass validated and authorized post creation request
 else Validation/Auth error
-    MW --> FE: 4xx Error
-    FE --> User: Display error
+    MW --> FE: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    FE --> User: Display validation or authorization error
 end
 
-C -> Service: createPost(post data)
-Service -> ORM: Save new post
-ORM -> DB: Insert new post
+C -> Service: createPost(userId, postData)
+Service -> ORM: createMarketplacePost(userId, title, description, price)
+ORM -> DB: INSERT INTO marketplace_posts (user_id, title, description, price, status, created_at) VALUES (...)
 
 alt DB insert success
-    DB --> ORM: Post saved
-    ORM --> Service: Post persisted
-    Service --> C: Confirm post creation
-    C --> FE: Display new post
+    DB --> ORM: Insert successful
+    ORM --> Service: Marketplace post persisted
+    Service --> C: Post created successfully
+    C --> FE: Return newly created post response
     FE --> User: Show "Post created successfully"
 else DB insert failure
-    DB --> ORM: Error
-    ORM --> Service: Persistence failed
-    Service --> C: 500 Error
-    C --> FE: Error response
-    FE --> User: Display system error
+    DB --> ORM: Insert failed / SQL exception
+    ORM --> Service: Marketplace post persistence failed
+    Service --> C: 500 Internal Server Error
+    C --> FE: Return "Unable to create marketplace post" error response
+    FE --> User: Display system error while creating post
 end
 
 
 == Deleting a Post ==
 
-User -> FE: Find own post and click delete
-FE -> Apache: DELETE /deletePost(postId)
+User -> FE: Select own post and click delete
+FE -> Apache: DELETE /deletePost/{postId}
 
 alt Route exists
-    Apache -> MW: Forward request
+    Apache -> MW: Forward HTTP delete post request
 else Route not found
     Apache --> FE: 404 Not Found
-    FE --> User: Display error
+    FE --> User: Display "Delete post route not found" error
 end
 
 alt Valid + Authorized
-    MW -> C: Pass validated request
+    MW -> C: Pass validated and authorized delete post request
 else Validation/Auth error
-    MW --> FE: 4xx Error
-    FE --> User: Display error
+    MW --> FE: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    FE --> User: Display validation or authorization error
 end
 
-C -> Service: deletePost(postId)
-Service -> ORM: Verify post owner
-ORM -> DB: Query post owner
+C -> Service: deletePost(postId, userId)
+Service -> ORM: getPostOwnerById(postId)
+ORM -> DB: SELECT user_id FROM marketplace_posts WHERE post_id = ?
 
 alt Ownership query success
-    DB --> ORM: Owner verified
-    ORM --> Service: Ownership result
+    DB --> ORM: Post owner record
+    ORM --> Service: Ownership lookup result
 
     alt User is owner
-        Service -> ORM: Delete post
-        ORM -> DB: Delete post record
+        Service -> ORM: deleteMarketplacePostById(postId)
+        ORM -> DB: DELETE FROM marketplace_posts WHERE post_id = ?
 
         alt DB delete success
-            DB --> ORM: Post deleted
-            ORM --> Service: Deletion complete
-            Service --> C: Confirm deletion
-            C --> FE: Update marketplace view
+            DB --> ORM: Delete successful
+            ORM --> Service: Marketplace post deleted
+            Service --> C: Post deletion confirmed
+            C --> FE: Return updated marketplace response
             FE --> User: Show "Post deleted successfully"
         else DB delete failure
-            DB --> ORM: Error
-            ORM --> Service: Delete failed
-            Service --> C: 500 Error
-            C --> FE: Error response
-            FE --> User: Display system error
+            DB --> ORM: Delete failed / SQL exception
+            ORM --> Service: Marketplace post deletion failed
+            Service --> C: 500 Internal Server Error
+            C --> FE: Return "Unable to delete selected post" error response
+            FE --> User: Display system error while deleting post
         end
 
     else User is not owner
-        Service --> C: Access denied
+        Service --> C: Post ownership validation failed
         C --> FE: 403 Forbidden
-        FE --> User: Show ownership error
+        FE --> User: Show "You can only delete your own posts" error
     end
 
 else Ownership query failure
-    DB --> ORM: Error
-    ORM --> Service: Ownership check failed
-    Service --> C: 500 Error
-    C --> FE: Error response
-    FE --> User: Display system error
+    DB --> ORM: Query failed / SQL exception
+    ORM --> Service: Ownership verification failed
+    Service --> C: 500 Internal Server Error
+    C --> FE: Return "Unable to verify post ownership" error response
+    FE --> User: Display system error while validating ownership
 end
 
 
 == Messaging Seller ==
 
-User -> FE: Click post and send message
+User -> FE: Open post and send seller message
 FE -> Apache: POST /sendMessage
 
 alt Route exists
-    Apache -> MW: Forward request
+    Apache -> MW: Forward HTTP send message request
 else Route not found
     Apache --> FE: 404 Not Found
-    FE --> User: Display error
+    FE --> User: Display "Send message route not found" error
 end
 
 alt Valid + Authorized
-    MW -> C: Pass validated request
+    MW -> C: Pass validated and authorized message request
 else Validation/Auth error
-    MW --> FE: 4xx Error
-    FE --> User: Display error
+    MW --> FE: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    FE --> User: Display validation or authorization error
 end
 
-C -> MessageService: sendMessage(postId, message)
-MessageService -> ORM: Check existing chat for this post
-ORM -> DB: Query chat by post and users
+C -> MessageService: sendMessage(postId, senderId, messageContent)
+MessageService -> ORM: findChatByPostAndParticipants(postId, senderId, sellerId)
+ORM -> DB: SELECT chat_id FROM chats WHERE post_id = ? AND buyer_id = ? AND seller_id = ?
 
 alt Chat lookup success
-    DB --> ORM: Chat validation
-    ORM --> MessageService: Chat lookup result
+    DB --> ORM: Chat lookup result
+    ORM --> MessageService: Existing chat validation result
 
     alt Chat exists
-        MessageService -> ORM: Save message in existing chat
-        ORM -> DB: Insert message
+        MessageService -> ORM: createMessage(chatId, senderId, messageContent)
+        ORM -> DB: INSERT INTO messages (chat_id, sender_id, content, created_at) VALUES (...)
 
         alt Message save success
-            DB --> ORM: Message saved
-            ORM --> MessageService: Save confirmed
-            MessageService --> C: Message validated
-            C --> FE: Confirm delivery
+            DB --> ORM: Insert successful
+            ORM --> MessageService: Message persisted
+            MessageService --> C: Message sent successfully
+            C --> FE: Return message delivery confirmation
             FE --> User: Show message sent confirmation
         else Message save failure
-            DB --> ORM: Error
-            ORM --> MessageService: Save failed
-            MessageService --> C: 500 Error
-            C --> FE: Error response
-            FE --> User: Display system error
+            DB --> ORM: Insert failed / SQL exception
+            ORM --> MessageService: Message persistence failed
+            MessageService --> C: 500 Internal Server Error
+            C --> FE: Return "Unable to send message in existing chat" error response
+            FE --> User: Display system error while sending message
         end
 
     else New chat
-        MessageService -> ORM: Create new chat
-        ORM -> DB: Insert chat
+        MessageService -> ORM: createChat(postId, buyerId, sellerId)
+        ORM -> DB: INSERT INTO chats (post_id, buyer_id, seller_id, created_at) VALUES (...)
 
         alt Chat creation success
-            DB --> ORM: Chat created
+            DB --> ORM: Chat insert successful
             ORM --> MessageService: Chat persisted
 
-            MessageService -> ORM: Save message in new chat
-            ORM -> DB: Insert message
+            MessageService -> ORM: createMessage(chatId, senderId, messageContent)
+            ORM -> DB: INSERT INTO messages (chat_id, sender_id, content, created_at) VALUES (...)
 
             alt Message save success
-                DB --> ORM: Message saved
-                ORM --> MessageService: Save confirmed
-                MessageService --> C: Message validated
-                C --> FE: Confirm delivery
+                DB --> ORM: Insert successful
+                ORM --> MessageService: Message persisted
+                MessageService --> C: Message sent successfully
+                C --> FE: Return message delivery confirmation
                 FE --> User: Show message sent confirmation
             else Message save failure
-                DB --> ORM: Error
-                ORM --> MessageService: Save failed
-                MessageService --> C: 500 Error
-                C --> FE: Error response
-                FE --> User: Display system error
+                DB --> ORM: Insert failed / SQL exception
+                ORM --> MessageService: Message persistence failed
+                MessageService --> C: 500 Internal Server Error
+                C --> FE: Return "Unable to save first message in new chat" error response
+                FE --> User: Display system error while sending message
             end
 
         else Chat creation failure
-            DB --> ORM: Error
+            DB --> ORM: Insert failed / SQL exception
             ORM --> MessageService: Chat creation failed
-            MessageService --> C: 500 Error
-            C --> FE: Error response
-            FE --> User: Display system error
+            MessageService --> C: 500 Internal Server Error
+            C --> FE: Return "Unable to create chat session for this post" error response
+            FE --> User: Display system error while starting chat
         end
     end
 
 else Chat lookup failure
-    DB --> ORM: Error
+    DB --> ORM: Query failed / SQL exception
     ORM --> MessageService: Chat lookup failed
-    MessageService --> C: 500 Error
-    C --> FE: Error response
-    FE --> User: Display system error
+    MessageService --> C: 500 Internal Server Error
+    C --> FE: Return "Unable to validate chat for this marketplace post" error response
+    FE --> User: Display system error while checking conversation
 end
 
 @enduml

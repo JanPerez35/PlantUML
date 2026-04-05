@@ -23,7 +23,7 @@ end note
 
 == Search Inventory ==
 
-User -> Frontend: Search inventory item
+User -> Frontend: Search inventory items (keyword, filters)
 activate User
 activate Frontend
 activate Apache
@@ -33,113 +33,113 @@ activate Service
 activate ORM
 activate Database
 
-Frontend -> Apache: Request /items
+Frontend -> Apache: GET /items?search={query}&filters={filters}
 
 alt Route exists
-    Apache -> Middleware: Forward request
+    Apache -> Middleware: Forward HTTP inventory search request
 else Route not found
     Apache --> Frontend: 404 Not Found
-    Frontend --> User: Display error
+    Frontend --> User: Display "Inventory search route not found" error
 end
 
 alt Valid + Authorized
-    Middleware -> Controller: Pass validated request
+    Middleware -> Controller: Pass validated and authorized search request
 else Validation/Auth error
-    Middleware --> Frontend: 4xx Error
-    Frontend --> User: Display error
+    Middleware --> Frontend: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    Frontend --> User: Display validation or authorization error
 end
 
-Controller -> Service: getItems()
-Service -> ORM: Retrieve items
-ORM -> Database: SELECT * FROM items
+Controller -> Service: getInventoryItems(searchQuery, filters, pagination)
+Service -> ORM: getAvailableItemsWithFilters(searchQuery, filters)
+ORM -> Database: SELECT id, name, category, quantity_available, status FROM items WHERE filters_apply
 
 alt DB query success
-    Database --> ORM: Item records
-    ORM --> Service: Item collection
-    Service --> Controller: Item list
-    Controller --> Frontend: Item list
-    Frontend --> User: Display inventory
+    Database --> ORM: Inventory item result set
+    ORM --> Service: Filtered inventory items returned
+    Service --> Controller: Inventory item collection
+    Controller --> Frontend: Return inventory search results
+    Frontend --> User: Display inventory item list
 else DB query failure
-    Database --> ORM: Error
-    ORM --> Service: Query failed
-    Service --> Controller: 500 Error
-    Controller --> Frontend: Error response
-    Frontend --> User: Display system error
+    Database --> ORM: Query failed / SQL exception
+    ORM --> Service: Inventory retrieval failed
+    Service --> Controller: 500 Internal Server Error
+    Controller --> Frontend: Return "Unable to retrieve inventory items" error response
+    Frontend --> User: Display system error while loading inventory
 end
 
 
 == Borrow Request ==
 
-User -> Frontend: Select item & Request
+User -> Frontend: Select item and submit borrow request
 Frontend -> Apache: POST /borrowRequest
 
 alt Route exists
-    Apache -> Middleware: Forward request
+    Apache -> Middleware: Forward HTTP borrow request
 else Route not found
     Apache --> Frontend: 404 Not Found
-    Frontend --> User: Display error
+    Frontend --> User: Display "Borrow request route not found" error
 end
 
 alt Valid + Authorized
-    Middleware -> Controller: Pass validated request
+    Middleware -> Controller: Pass validated and authorized borrow request
 else Validation/Auth error
-    Middleware --> Frontend: 4xx Error
-    Frontend --> User: Display error
+    Middleware --> Frontend: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    Frontend --> User: Display validation or authorization error
 end
 
-Controller -> Service: createBorrowRequest()
-Service -> ORM: Check item availability
-ORM -> Database: SELECT status FROM items
+Controller -> Service: createBorrowRequest(userId, itemId, requestedQuantity)
+Service -> ORM: getItemAvailabilityById(itemId)
+ORM -> Database: SELECT quantity_available, status FROM items WHERE id = ?
 
 alt Availability query success
-    Database --> ORM: Item status
-    ORM --> Service: Availability result
+    Database --> ORM: Item availability record
+    ORM --> Service: Availability lookup result
 
     alt Item available
-        Service -> ORM: Save borrow request
-        ORM -> Database: INSERT borrow_request
+        Service -> ORM: createBorrowRequestRecord(userId, itemId, requestedQuantity)
+        ORM -> Database: INSERT INTO borrow_requests (user_id, item_id, quantity, status, created_at) VALUES (...)
 
         alt Borrow request saved
             Database --> ORM: Insert successful
-            ORM --> Service: Request persisted
+            ORM --> Service: Borrow request persisted
 
-            Service -> ORM: Update item status [Reserved]
-            ORM -> Database: UPDATE items SET status='Reserved'
+            Service -> ORM: updateItemStatusAndQuantity(itemId, requestedQuantity)
+            ORM -> Database: UPDATE items SET quantity_available = quantity_available - ?, status = 'Reserved' WHERE id = ?
 
             alt Item status updated
                 Database --> ORM: Update successful
-                ORM --> Service: Status updated
-                Service --> Controller: Request approved
-                Controller --> Frontend: Response
-                Frontend --> User: Display confirmation
+                ORM --> Service: Item reservation persisted
+                Service --> Controller: Borrow request approved
+                Controller --> Frontend: Return borrow request success response
+                Frontend --> User: Display borrow confirmation
             else Item status update failure
-                Database --> ORM: Error
-                ORM --> Service: Status update failed
-                Service --> Controller: 500 Error
-                Controller --> Frontend: Error response
-                Frontend --> User: Display system error
+                Database --> ORM: Update failed / SQL exception
+                ORM --> Service: Item reservation update failed
+                Service --> Controller: 500 Internal Server Error
+                Controller --> Frontend: Return "Unable to reserve selected item" error response
+                Frontend --> User: Display system error while reserving item
             end
 
         else Borrow request save failure
-            Database --> ORM: Error
-            ORM --> Service: Request persistence failed
-            Service --> Controller: 500 Error
-            Controller --> Frontend: Error response
-            Frontend --> User: Display system error
+            Database --> ORM: Insert failed / SQL exception
+            ORM --> Service: Borrow request persistence failed
+            Service --> Controller: 500 Internal Server Error
+            Controller --> Frontend: Return "Unable to create borrow request" error response
+            Frontend --> User: Display system error while submitting request
         end
 
     else Item unavailable
-        Service --> Controller: Request rejected
-        Controller --> Frontend: Response
-        Frontend --> User: Display confirmation
+        Service --> Controller: Borrow request rejected due to insufficient availability
+        Controller --> Frontend: Return rejection response
+        Frontend --> User: Display "Item is currently unavailable or out of stock"
     end
 
 else Availability query failure
-    Database --> ORM: Error
-    ORM --> Service: Availability check failed
-    Service --> Controller: 500 Error
-    Controller --> Frontend: Error response
-    Frontend --> User: Display system error
+    Database --> ORM: Query failed / SQL exception
+    ORM --> Service: Item availability check failed
+    Service --> Controller: 500 Internal Server Error
+    Controller --> Frontend: Return "Unable to verify item availability" error response
+    Frontend --> User: Display system error while checking availability
 end
 
 @enduml
