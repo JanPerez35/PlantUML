@@ -1,0 +1,85 @@
+@startuml
+
+title Super Admin User Search and Filtering Sequence Diagram
+
+actor "Super Admin" as Admin
+
+participant "Frontend (Website)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "UserController" as UC
+  participant "Eloquent ORM" as ORM
+end box
+
+database "MariaDB Database" as DB
+
+note right of Admin
+Super Admin is the only role with access
+to the Search Users page. From this page,
+they can search users, filter by role,
+and manage user accounts. They also have 
+access to the entire website.
+end note
+
+note left of DB
+It is assumed the Super Admin is
+authenticated/authorized unless an exception occurs.
+end note
+
+
+== Open Search Users Page ==
+
+Admin -> FE: Open "Buscar Usuarios" page
+activate Admin
+activate FE
+activate Apache
+activate MW
+activate UC
+activate ORM
+activate DB
+
+FE -> Apache: GET /search_user
+
+alt Route exists
+    Apache -> MW: Forward HTTP search users request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display "Search users route not found" error
+end
+
+alt Valid + Authorized
+    MW -> UC: Pass authenticated and authorized search users request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden
+    FE --> Admin: Display validation or authorization error
+end
+
+UC -> ORM: User::all()
+ORM -> DB: SELECT * FROM users
+
+alt User query success
+    DB --> ORM: User result set
+    ORM --> UC: users collection
+    UC --> FE: Return search_user view
+    FE --> Admin: Display user cards with role and status information
+else User query failure
+    DB --> ORM: Query failed / SQL exception
+    ORM --> UC: User retrieval failed
+    UC --> FE: 500 Internal Server Error
+    FE --> Admin: Display system error while loading users
+end
+
+
+== Search and Filter Users ==
+
+Admin -> FE: Search by name/email or filter by role
+
+alt Matching users found
+    FE --> Admin: Display filtered user cards and pagination
+else No matching users found
+    FE --> Admin: Display "No se encontraron usuarios"
+end
+
+@enduml

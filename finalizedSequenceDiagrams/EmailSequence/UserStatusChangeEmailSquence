@@ -1,0 +1,135 @@
+@startuml
+
+title User Status Change Email Notification Sequence Diagram
+
+actor "Super Admin" as Admin
+
+participant "Frontend (Website)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "UserController" as UC
+  participant "Eloquent ORM" as ORM
+  participant "Email Service" as EmailService
+  participant "GenericMail Mailable" as GenericMail
+end box
+
+participant "Laravel Mail Queue / SMTP" as Mailer
+participant "Gmail" as Gmail
+database "MariaDB Database" as DB
+
+note right of Admin
+It is assumed the Admin is
+authenticated/authorized unless an exception occurs.
+end note
+
+== Update User Status and Trigger Email ==
+
+Admin -> FE: Change user status to "Bloqueado" or "Activo"
+activate Admin
+activate FE
+activate Apache
+activate MW
+activate UC
+activate ORM
+activate EmailService
+activate GenericMail
+activate Mailer
+activate Gmail
+activate DB
+
+FE -> Apache: POST /admin/updateUserStatus
+
+alt Route exists
+    Apache -> MW: Forward HTTP user status update request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display "User status update route not found" error
+end
+
+alt Valid + Authorized
+    MW -> UC: Pass validated and authorized status update request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    FE --> Admin: Display validation or authorization error
+end
+
+UC -> UC: Validate status in ['Activo','Bloqueado']
+
+alt Validation success
+    UC -> ORM: Load target User model from route binding
+else Validation failure
+    UC --> FE: 422 Unprocessable Entity
+    FE --> Admin: Display invalid user status error
+end
+
+UC -> UC: previousStatus = user.status
+UC -> ORM: user->save(status)
+ORM -> DB: UPDATE users SET status = ? WHERE id = ?
+
+alt User status update success
+    DB --> ORM: Update successful
+    ORM --> UC: User status persisted
+else User status update failure
+    DB --> ORM: Update failed / SQL exception
+    ORM --> UC: User status persistence failed
+    UC --> FE: 500 Internal Server Error
+    FE --> Admin: Display system error while updating user status
+end
+
+UC -> ORM: User::where(role = 'Admin Super')->where(status = 'Activo')->first()
+ORM -> DB: SELECT * FROM users WHERE role = 'Admin Super' AND status = 'Activo' LIMIT 1
+
+alt Super admin lookup success
+    DB --> ORM: Active super admin record or empty result
+    ORM --> UC: Super admin lookup result
+else Super admin lookup failure
+    DB --> ORM: Query failed / SQL exception
+    ORM --> UC: Super admin lookup failed
+    UC --> FE: 500 Internal Server Error
+    FE --> Admin: Display system error while retrieving super admin contact
+end
+
+UC -> UC: superAdminEmail = superAdmin.email ?? fallback extension
+
+alt Status changed to Bloqueado
+    UC -> EmailService: send(user.email, "Cuenta bloqueada", blockedMessageWithContact)
+    EmailService -> GenericMail: new GenericMail(subjectText, messageText)
+    GenericMail --> EmailService: Mailable instance created
+    EmailService -> Mailer: Mail::to(user.email)->queue(GenericMail)
+
+    alt Email queued successfully
+        Mailer -> Gmail: Deliver blocked account notification
+        Gmail --> Mailer: Delivery accepted
+        Mailer --> EmailService: Email queued/sent successfully
+        EmailService --> UC: Block notification completed
+    else Email queue/send failure
+        Mailer --> EmailService: Queue / SMTP failure
+        EmailService --> UC: Block notification failed
+    end
+
+else Status changed to Activo
+    UC -> EmailService: send(user.email, "Cuenta desbloqueada", reactivatedMessage)
+    EmailService -> GenericMail: new GenericMail(subjectText, messageText)
+    GenericMail --> EmailService: Mailable instance created
+    EmailService -> Mailer: Mail::to(user.email)->queue(GenericMail)
+
+    alt Email queued successfully
+        Mailer -> Gmail: Deliver account reactivated notification
+        Gmail --> Mailer: Delivery accepted
+        Mailer --> EmailService: Email queued/sent successfully
+        EmailService --> UC: Reactivation notification completed
+    else Email queue/send failure
+        Mailer --> EmailService: Queue / SMTP failure
+        EmailService --> UC: Reactivation notification failed
+    end
+
+else Status unchanged
+    note right of UC: No email sent\npreviousStatus equals requested status
+end
+
+UC --> FE: Return JSON { success, message, status }
+FE --> Admin: Show "Estado actualizado correctamente"
+
+@enduml

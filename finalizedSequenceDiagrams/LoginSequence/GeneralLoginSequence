@@ -1,0 +1,129 @@
+@startuml
+
+title SAML User Login and Terms Enforcement Sequence Diagram
+
+actor "User (Any)" as User
+
+participant "Frontend (Login Page)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "SAML Routes\n(saml2.php)" as SAMLRoutes
+  participant "Socialite SAML Driver" as Socialite
+  participant "Laravel Auth" as Auth
+  participant "Eloquent ORM" as ORM
+end box
+
+participant "UPR Identity Provider\n(UPRM Auth Server)" as IdP
+database "MariaDB Database" as DB
+
+note right of User
+It is assumed the user is not yet
+authenticated when starting this flow.
+end note
+
+loop Login attempts
+
+User -> FE: Click "Accede con tu cuenta UPRM"
+activate User
+activate FE
+activate Apache
+activate MW
+activate SAMLRoutes
+activate Socialite
+activate Auth
+activate ORM
+activate IdP
+activate DB
+
+FE -> Apache: GET /auth/saml/login
+
+alt Route exists
+    Apache -> MW: Forward HTTP SAML login request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display "SAML login route not found" error
+end
+
+alt Request allowed
+    MW -> SAMLRoutes: Execute saml.login route
+else Middleware / request error
+    MW --> FE: 403 Forbidden / 400 Bad Request
+    FE --> User: Display authentication request error
+end
+
+SAMLRoutes -> Socialite: Socialite::driver('saml2')->redirect()
+Socialite -> IdP: Redirect user to SAML Identity Provider
+
+alt IdP available
+    IdP --> User: Display institutional login form
+    User -> IdP: Submit UPRM credentials
+    IdP -> IdP: Validate institutional credentials
+else IdP unavailable
+    IdP --> Socialite: Connection failure / timeout / 5xx error
+    Socialite --> SAMLRoutes: Redirect initialization failed
+    SAMLRoutes --> FE: 503 Service Unavailable
+    FE --> User: Show "UPRM authentication service is currently unavailable"
+end
+
+alt Credentials valid
+    IdP --> Apache: Redirect to /auth/callback with SAML response
+else Invalid credentials
+    IdP --> User: Show invalid credential error on IdP login page
+end
+
+Apache -> MW: Forward HTTP SAML callback request
+
+alt Callback route exists
+    MW -> SAMLRoutes: Execute saml.callback route
+else Callback route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display "SAML callback route not found" error
+end
+
+SAMLRoutes -> Socialite: Socialite::driver('saml2')->stateless()->user()
+
+alt SAML user retrieval success
+    Socialite --> SAMLRoutes: Return authenticated SAML user attributes
+else SAML callback failure
+    Socialite --> SAMLRoutes: Invalid response / malformed assertion / provider error
+    SAMLRoutes --> FE: 401 Unauthorized / 500 Internal Server Error
+    FE --> User: Show SAML authentication callback error
+end
+
+SAMLRoutes -> ORM: User::updateOrCreate(email, name, first_name, last_name, auth_type, password)
+ORM -> DB: SELECT * FROM users WHERE email = ? LIMIT 1
+ORM -> DB: INSERT INTO users (...) OR UPDATE users SET name = ?, first_name = ?, last_name = ?, auth_type = 'saml2', password = ? WHERE email = ?
+
+alt User upsert success
+    DB --> ORM: User record created or updated
+    ORM --> SAMLRoutes: Local user model ready
+else User upsert failure
+    DB --> ORM: Insert/update failed / SQL exception
+    ORM --> SAMLRoutes: User persistence failed
+    SAMLRoutes --> FE: 500 Internal Server Error
+    FE --> User: Display system error while creating local account
+end
+
+SAMLRoutes -> Auth: Auth::login(user)
+
+alt Laravel login success
+    Auth --> SAMLRoutes: Authenticated session created
+else Laravel login failure
+    Auth --> SAMLRoutes: Session login failed
+    SAMLRoutes --> FE: 500 Internal Server Error
+    FE --> User: Display system error while starting session
+end
+
+alt terms_accepted is false
+    SAMLRoutes --> FE: Redirect to route('terms.show')
+    FE --> User: Display Terms and Conditions page
+else terms_accepted is true
+    SAMLRoutes --> FE: Redirect to route('kinemarket')
+    FE --> User: Redirect to Kinemarket home
+end
+
+end
+
+@enduml

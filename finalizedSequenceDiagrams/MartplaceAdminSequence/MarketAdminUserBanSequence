@@ -1,0 +1,134 @@
+@startuml
+
+title Marketplace Admin User Ban Sequence Diagram
+
+actor "Marketplace Admin" as Admin
+
+participant "Frontend (Website)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "UserReportController" as URC
+  participant "UserController" as UC
+  participant "Eloquent ORM" as ORM
+end box
+
+database "MariaDB Database" as DB
+
+note right of Admin
+Marketplace Admin can block the
+reported user and then mark the
+associated report as resolved.
+end note
+
+note left of DB
+It is assumed the Marketplace Admin is
+authenticated/authorized unless an exception occurs.
+end note
+
+
+== Ban Reported User ==
+
+Admin -> FE: Select report and confirm "Bloquear usuario"
+activate Admin
+activate FE
+activate Apache
+activate MW
+activate URC
+activate UC
+activate ORM
+activate DB
+
+FE -> Apache: POST /reports/{report}/ban
+
+alt Route exists
+    Apache -> MW: Forward HTTP ban user request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display "Ban user route not found" error
+end
+
+alt Valid + Authorized
+    MW -> URC: Pass authenticated and authorized ban user request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden
+    FE --> Admin: Display validation or authorization error
+end
+
+URC -> ORM: Load report with reported user context
+ORM -> DB: SELECT report and reported user WHERE report.id = ? LIMIT 1
+
+alt Report and reported user found
+    DB --> ORM: Report and user record
+    ORM --> URC: Report target retrieved
+else Report or reported user not found
+    DB --> ORM: Empty result set
+    ORM --> URC: Ban target not found
+    URC --> FE: 404 Not Found
+    FE --> Admin: Display selected user/report not found error
+end
+
+URC -> ORM: Update reported user account status to blocked
+ORM -> DB: UPDATE users SET status = 'Bloqueado' WHERE id = ?
+
+alt User ban success
+    DB --> ORM: Update successful
+    ORM --> URC: User blocked successfully
+    URC --> FE: Return ban success response
+else User ban failure
+    DB --> ORM: Update failed / SQL exception
+    ORM --> URC: User block update failed
+    URC --> FE: 500 Internal Server Error
+    FE --> Admin: Display system error while blocking user
+end
+
+
+== Resolve Report After User Ban ==
+
+FE -> Apache: POST /reports/{report}/resolve
+
+alt Route exists
+    Apache -> MW: Forward HTTP resolve report request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display "Resolve report route not found" error
+end
+
+alt Valid + Authorized
+    MW -> URC: Pass authenticated and authorized resolve report request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden
+    FE --> Admin: Display validation or authorization error
+end
+
+URC -> ORM: Load report by route parameter
+ORM -> DB: SELECT * FROM reports WHERE id = ? LIMIT 1
+
+alt Report found
+    DB --> ORM: Report record
+    ORM --> URC: Report retrieved
+
+    URC -> ORM: Update report status to resolved
+    ORM -> DB: UPDATE reports SET status = 'Resolved', resolved_at = CURRENT_TIMESTAMP WHERE id = ?
+
+    alt Resolve update success
+        DB --> ORM: Update successful
+        ORM --> URC: Report marked resolved
+        URC --> FE: Return success response
+        FE --> Admin: Remove report row and show ban confirmation
+    else Resolve update failure
+        DB --> ORM: Update failed / SQL exception
+        ORM --> URC: Report resolution failed
+        URC --> FE: 500 Internal Server Error
+        FE --> Admin: Display system error while resolving report after user ban
+    end
+
+else Report not found
+    DB --> ORM: Empty result set
+    ORM --> URC: Report not found
+    URC --> FE: 404 Not Found
+    FE --> Admin: Display selected report not found error
+end
+
+@enduml

@@ -1,0 +1,94 @@
+@startuml
+
+title User Profile Requests Filtering Sequence Diagram
+
+actor User
+
+participant "Frontend (Website)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "ProfileController" as PC
+  participant "Eloquent ORM" as ORM
+end box
+
+database "MariaDB Database" as DB
+
+note right of User
+It is assumed the User is
+authenticated/authorized unless an exception occurs.
+end note
+
+
+== Open Requests Tab ==
+
+User -> FE: Open "Solicitudes de Artículos" tab
+activate User
+activate FE
+activate Apache
+activate MW
+activate PC
+activate ORM
+activate DB
+
+FE -> Apache: GET /my_profile?tab=requests
+
+alt Route exists
+    Apache -> MW: Forward HTTP profile requests tab request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display "My profile route not found" error
+end
+
+alt Valid + Authorized
+    MW -> PC: Pass authenticated and authorized requests tab request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden
+    FE --> User: Display validation or authorization error
+end
+
+PC -> ORM: Lending::with(items.equipment)->where(user_id = user.id)
+ORM -> DB: SELECT user lending requests with related equipment
+
+alt Request search provided
+    PC -> ORM: Apply whereHas(items.equipment.description LIKE request_search)
+    ORM -> DB: SELECT filtered lending requests by equipment description
+else No request search provided
+    note right of PC: Keep unfiltered request query
+end
+
+alt Request status filter provided
+    alt request_status = 'finished'
+        PC -> ORM: Apply whereIn(status, ['finished','returned'])
+        ORM -> DB: SELECT finished or returned requests
+    else request_status = another status
+        PC -> ORM: Apply where(status = request_status)
+        ORM -> DB: SELECT requests with selected status
+    end
+else No request status filter provided
+    note right of PC: Keep all request statuses
+end
+
+PC -> ORM: latest(created_at)->paginate(5)->withQueryString()
+ORM -> DB: SELECT paginated lending requests ORDER BY created_at DESC
+
+alt Requests query success
+    DB --> ORM: Filtered request result set
+    ORM --> PC: Paginated requests retrieved
+else Requests query failure
+    DB --> ORM: Query failed / SQL exception
+    ORM --> PC: Request retrieval failed
+    PC --> FE: 500 Internal Server Error
+    FE --> User: Display system error while loading requests
+end
+
+alt Current page exceeds available pages
+    PC --> FE: Redirect to /my_profile?tab=requests&page=1 with active filters
+    FE --> User: Return to first valid requests page
+else Current page valid
+    PC --> FE: Return my_profile view with filtered requests
+    FE --> User: Display matching request cards and pagination
+end
+
+@enduml

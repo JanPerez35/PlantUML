@@ -1,0 +1,195 @@
+@startuml
+
+title Inventory Admin Statistics Report Sequence Diagram
+
+actor "Inventory Admin" as Admin
+participant "Frontend Website" as Frontend
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "InventoryStatisticsController" as ISC
+  participant "Eloquent ORM" as ORM
+  participant "DOM PDF Engine" as PDF
+end box
+
+database "MariaDB Database" as DB
+
+note right of Admin
+Inventory Admin can view inventory
+statistics, apply monthly or annual
+filters, and export the resulting
+report as CSV or PDF.
+end note
+
+note left of DB
+It is assumed the Inventory Admin is
+authenticated/authorized unless an exception occurs.
+end note
+
+
+== View Statistics Report ==
+
+Admin -> Frontend: Open statistics page or change report filters
+activate Admin
+activate Frontend
+activate Apache
+activate MW
+activate ISC
+activate ORM
+activate PDF
+activate DB
+
+Frontend -> Apache: GET /inventory_management/inventory_statistics?type=&year=&month=
+
+alt Route exists
+    Apache -> MW: Forward HTTP statistics page request
+else Route not found
+    Apache --> Frontend: 404 Not Found
+    Frontend --> Admin: Display "Inventory statistics route not found" error
+end
+
+alt Valid + Authorized
+    MW -> ISC: Pass authenticated and authorized statistics request
+else Validation/Auth error
+    MW --> Frontend: 401 Unauthorized / 403 Forbidden
+    Frontend --> Admin: Display validation or authorization error
+end
+
+ISC -> ISC: Read type, year, and month from request
+
+alt Monthly report selected
+    ISC -> ORM: Query lending/lending_items/equipment data filtered by selected month and year
+    ORM -> DB: SELECT aggregated item request counts WHERE MONTH(start_time) = ? AND YEAR(start_time) = ?
+else Annual report selected
+    ISC -> ORM: Query lending/lending_items/equipment data filtered by selected year
+    ORM -> DB: SELECT aggregated item request counts WHERE YEAR(start_time) = ?
+end
+
+alt Statistics query success
+    DB --> ORM: Aggregated statistics result set
+    ORM --> ISC: items collection with description and total
+else Statistics query failure
+    DB --> ORM: Query failed / SQL exception
+    ORM --> ISC: Statistics retrieval failed
+    ISC --> Frontend: 500 Internal Server Error
+    Frontend --> Admin: Display system error while loading statistics
+end
+
+ISC -> ISC: topItem = first ranked item or null
+ISC -> ISC: totalReqs = sum of request totals
+ISC -> ISC: totalItems = count of analyzed items
+
+ISC -> ORM: Query available report years from lending statistics dataset
+ORM -> DB: SELECT DISTINCT available years used in statistics
+
+alt Available years query success
+    DB --> ORM: Available year list
+    ORM --> ISC: availableYears collection
+    ISC --> Frontend: Return inventory statistics view with chart data and summaries
+    Frontend --> Admin: Display statistics cards, chart, and top 3 table
+else Available years query failure
+    DB --> ORM: Query failed / SQL exception
+    ORM --> ISC: Available year retrieval failed
+    ISC --> Frontend: 500 Internal Server Error
+    Frontend --> Admin: Display system error while loading available years
+end
+
+
+== Export CSV Statistics Report ==
+
+Admin -> Frontend: Click "Exportar a CSV"
+Frontend -> Apache: GET /inventory_management/inventory_statistics/export?format=csv&type=&year=&month=
+
+alt Route exists
+    Apache -> MW: Forward HTTP CSV export request
+else Route not found
+    Apache --> Frontend: 404 Not Found
+    Frontend --> Admin: Display "Statistics export route not found" error
+end
+
+alt Valid + Authorized
+    MW -> ISC: Pass authenticated and authorized CSV export request
+else Validation/Auth error
+    MW --> Frontend: 401 Unauthorized / 403 Forbidden
+    Frontend --> Admin: Display validation or authorization error
+end
+
+ISC -> ISC: Read format, type, year, and month from request
+
+alt CSV format selected
+    ISC -> ORM: Re-run filtered statistics aggregation for export dataset
+    ORM -> DB: SELECT aggregated item request counts for CSV export
+else Invalid export format
+    ISC --> Frontend: 422 Unprocessable Entity / 400 Bad Request
+    Frontend --> Admin: Display invalid export format error
+end
+
+alt CSV export query success
+    DB --> ORM: Aggregated export result set
+    ORM --> ISC: Export dataset ready
+    ISC -> ISC: Build CSV filename and stream CSV response
+    ISC --> Frontend: Return downloadable CSV response
+    Frontend --> Admin: Download CSV file message "Tu documento se descargará en unos instantes."
+else CSV export query failure
+    DB --> ORM: Query failed / SQL exception
+    ORM --> ISC: CSV export retrieval failed
+    ISC --> Frontend: 500 Internal Server Error
+    Frontend --> Admin: Display system error while exporting CSV statistics
+end
+
+
+== Export PDF Statistics Report ==
+
+Admin -> Frontend: Click "Exportar a PDF"
+Frontend -> Apache: GET /inventory_management/inventory_statistics/export?format=pdf&type=&year=&month=
+
+alt Route exists
+    Apache -> MW: Forward HTTP PDF export request
+else Route not found
+    Apache --> Frontend: 404 Not Found
+    Frontend --> Admin: Display "Statistics export route not found" error
+end
+
+alt Valid + Authorized
+    MW -> ISC: Pass authenticated and authorized PDF export request
+else Validation/Auth error
+    MW --> Frontend: 401 Unauthorized / 403 Forbidden
+    Frontend --> Admin: Display validation or authorization error
+end
+
+ISC -> ISC: Read format, type, year, and month from request
+
+alt PDF format selected
+    ISC -> ORM: Re-run filtered statistics aggregation for export dataset
+    ORM -> DB: SELECT aggregated item request counts for PDF export
+else Invalid export format
+    ISC --> Frontend: 422 Unprocessable Entity / 400 Bad Request
+    Frontend --> Admin: Display invalid export format error
+end
+
+alt PDF export query success
+    DB --> ORM: Aggregated export result set
+    ORM --> ISC: Export dataset ready
+
+    ISC -> ISC: Compute summary values for PDF report
+    ISC -> PDF: Render statistics PDF view with filtered data
+
+    alt PDF render success
+        PDF --> ISC: PDF document generated
+        ISC --> Frontend: Return downloadable PDF response
+        Frontend --> Admin: Download PDF file and message "Tu documento se descargará en unos instantes."
+    else PDF render failure
+        PDF --> ISC: PDF generation failed / rendering exception
+        ISC --> Frontend: 500 Internal Server Error
+        Frontend --> Admin: Display system error while generating PDF statistics
+    end
+
+else PDF export query failure
+    DB --> ORM: Query failed / SQL exception
+    ORM --> ISC: PDF export retrieval failed
+    ISC --> Frontend: 500 Internal Server Error
+    Frontend --> Admin: Display system error while exporting PDF statistics
+end
+
+@enduml

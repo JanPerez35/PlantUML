@@ -1,0 +1,230 @@
+@startuml
+
+title Terms and Conditions Update and Reacceptance Sequence Diagram
+
+actor "Super Admin" as Admin
+actor "User (Any)" as User
+
+participant "Frontend (Website)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+participant "Public Storage" as Storage
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "TermsController" as TC
+  participant "SAML Routes\n(saml2.php)" as SAMLRoutes
+  participant "Socialite SAML Driver" as Socialite
+  participant "Laravel Auth" as Auth
+  participant "Eloquent ORM" as ORM
+end box
+
+participant "UPR Identity Provider\n(UPRM Auth Server)" as IdP
+database "MariaDB Database" as DB
+
+note right of Admin
+Only Admin Super users are allowed
+to replace the official Terms and
+Conditions PDF document.
+end note
+
+note right of User
+Users who have not accepted the latest
+terms must be redirected to the terms page
+before accessing the system.
+end note
+
+
+== Super Admin Updates Terms and Conditions ==
+
+Admin -> FE: Open Terms and Conditions modal and select new PDF
+activate Admin
+activate User
+activate FE
+activate Apache
+activate MW
+activate TC
+activate SAMLRoutes
+activate Socialite
+activate Auth
+activate ORM
+activate Storage
+activate IdP
+activate DB
+
+FE -> Apache: POST /terms/update
+
+alt Route exists
+    Apache -> MW: Forward HTTP terms update request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display "Terms update route not found" error
+end
+
+alt Valid + Authorized
+    MW -> TC: Pass authenticated and authorized terms update request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    FE --> Admin: Display validation or authorization error
+end
+
+TC -> TC: Verify authenticated user role is 'Admin Super'
+
+alt User is Admin Super
+    TC -> TC: Validate uploaded file as required PDF with max size 10 MB
+else User is not authorized
+    TC --> FE: 403 Forbidden
+    FE --> Admin: Display "No autorizado"
+end
+
+alt Validation success
+    TC -> Storage: Ensure public/documents directory exists
+    Storage --> TC: Destination directory available
+
+    TC -> Storage: Move uploaded file to public/documents/terms_conditions.pdf
+    Storage --> TC: Terms PDF replaced successfully
+else Validation failure
+    TC --> FE: 422 Unprocessable Entity
+    FE --> Admin: Display invalid PDF upload error
+end
+
+TC -> ORM: Reset terms_accepted for all users
+ORM -> DB: UPDATE users SET terms_accepted = 0
+
+alt Reset success
+    DB --> ORM: Update successful
+    ORM --> TC: User terms acceptance flags reset
+    TC --> FE: Redirect back with terms_updated_success message
+    FE --> Admin: Show "Términos y condiciones actualizados correctamente."
+else Reset failure
+    DB --> ORM: Update failed / SQL exception
+    ORM --> TC: User terms reset failed
+    TC --> FE: 500 Internal Server Error
+    FE --> Admin: Display system error while resetting terms acceptance
+end
+
+
+== User Logs In After Terms Update ==
+
+User -> FE: Click "Accede con tu cuenta UPRM"
+FE -> Apache: GET /auth/saml/login
+
+alt Route exists
+    Apache -> MW: Forward HTTP SAML login request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display "SAML login route not found" error
+end
+
+alt Request allowed
+    MW -> SAMLRoutes: Execute saml.login route
+else Middleware/request error
+    MW --> FE: 403 Forbidden / 400 Bad Request
+    FE --> User: Display authentication request error
+end
+
+SAMLRoutes -> Socialite: Socialite::driver('saml2')->redirect()
+Socialite -> IdP: Redirect user to Identity Provider
+
+alt IdP available
+    IdP --> User: Display institutional login form
+    User -> IdP: Submit UPRM credentials
+    IdP -> IdP: Validate credentials
+else IdP unavailable
+    IdP --> Socialite: Connection failure / timeout / 5xx error
+    Socialite --> SAMLRoutes: Redirect initialization failed
+    SAMLRoutes --> FE: 503 Service Unavailable
+    FE --> User: Show authentication service unavailable message
+end
+
+alt Credentials valid
+    IdP --> Apache: Redirect to /auth/callback with SAML response
+else Invalid credentials
+    IdP --> User: Show invalid credentials error
+end
+
+Apache -> MW: Forward HTTP SAML callback request
+
+alt Callback route exists
+    MW -> SAMLRoutes: Execute saml.callback route
+else Callback route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display "SAML callback route not found" error
+end
+
+SAMLRoutes -> Socialite: Socialite::driver('saml2')->stateless()->user()
+
+alt SAML user retrieval success
+    Socialite --> SAMLRoutes: Return authenticated SAML user attributes
+else SAML callback failure
+    Socialite --> SAMLRoutes: Invalid response / provider error
+    SAMLRoutes --> FE: 401 Unauthorized / 500 Internal Server Error
+    FE --> User: Show SAML authentication callback error
+end
+
+SAMLRoutes -> ORM: User::updateOrCreate(email, name, first_name, last_name, auth_type, password)
+ORM -> DB: SELECT existing user by email OR INSERT/UPDATE user record
+
+alt User upsert success
+    DB --> ORM: User record created or updated
+    ORM --> SAMLRoutes: Local user model ready
+else User upsert failure
+    DB --> ORM: Insert/update failed / SQL exception
+    ORM --> SAMLRoutes: User persistence failed
+    SAMLRoutes --> FE: 500 Internal Server Error
+    FE --> User: Display system error while creating local account
+end
+
+SAMLRoutes -> Auth: Auth::login(user)
+
+alt Login success
+    Auth --> SAMLRoutes: Authenticated session created
+else Login failure
+    Auth --> SAMLRoutes: Session login failed
+    SAMLRoutes --> FE: 500 Internal Server Error
+    FE --> User: Display system error while starting session
+end
+
+alt user.terms_accepted is false
+    SAMLRoutes --> FE: Redirect to route('terms.show')
+    FE --> User: Display Terms and Conditions page
+else user.terms_accepted is true
+    SAMLRoutes --> FE: Redirect to route('kinventory')
+    FE --> User: Enter system normally
+end
+
+
+== User Accepts Updated Terms ==
+
+User -> FE: Read terms and click accept
+FE -> Apache: POST /terms/accept
+
+alt Route exists
+    Apache -> MW: Forward HTTP terms acceptance request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display "Terms acceptance route not found" error
+end
+
+alt Valid + Authorized
+    MW -> TC: Pass authenticated terms acceptance request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden
+    FE --> User: Display validation or authorization error
+end
+
+TC -> ORM: auth()->user()->save(terms_accepted = true)
+ORM -> DB: UPDATE users SET terms_accepted = 1 WHERE id = ?
+
+alt Acceptance update success
+    DB --> ORM: Update successful
+    ORM --> TC: Terms acceptance persisted
+    TC --> FE: Redirect to route('kinventory') with success message
+    FE --> User: Enter system after accepting updated terms
+else Acceptance update failure
+    DB --> ORM: Update failed / SQL exception
+    ORM --> TC: Terms acceptance update failed
+    TC --> FE: 500 Internal Server Error
+    FE --> User: Display system error while accepting terms
+end
+
+@enduml

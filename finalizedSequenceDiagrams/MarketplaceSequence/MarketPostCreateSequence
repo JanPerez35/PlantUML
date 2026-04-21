@@ -1,0 +1,151 @@
+@startuml
+
+title Marketplace Post Creation and Deletion Sequence Diagram
+
+actor User
+
+participant "Frontend (Website)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+participant "Public Storage" as Storage
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "PostController" as PC
+  participant "Eloquent ORM" as ORM
+end box
+
+database "MariaDB Database" as DB
+
+note right of User
+It is assumed the User is
+authenticated/authorized unless an exception occurs.
+end note
+
+
+== Create Marketplace Post ==
+
+User -> FE: Complete "Crear Publicación" form and click "Publicar"
+activate User
+activate FE
+activate Apache
+activate MW
+activate PC
+activate ORM
+activate DB
+activate Storage
+
+FE -> Apache: POST /posts
+
+alt Route exists
+    Apache -> MW: Forward HTTP create post request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display "Create post route not found" error
+end
+
+alt Valid + Authorized
+    MW -> PC: Pass authenticated and authorized create post request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    FE --> User: Display validation or authorization error
+end
+
+PC -> PC: Validate title, description, cost, category, condition, images, and image MIME/size limits
+
+alt Validation success
+    alt Uploaded images present
+        loop For each uploaded image
+            PC -> Storage: image->store('posts', 'public')
+            Storage --> PC: Stored image path
+        end
+    else No images uploaded
+        note right of PC: Save post with null image paths
+    end
+else Validation failure
+    PC --> FE: 422 Unprocessable Entity
+    FE --> User: Display invalid post form input errors
+end
+
+PC -> ORM: Post::create(user_id, title, description, cost, category, condition, status, photo_1_url, photo_2_url, photo_3_url)
+ORM -> DB: INSERT INTO posts (...) VALUES (...)
+
+alt Post insert success
+    DB --> ORM: Insert successful
+    ORM --> PC: Marketplace post persisted
+    PC --> FE: Return JSON { success: true }
+    FE --> User: Show post creation success confirmation "Publicación fue creada exitosamente"
+else Post insert failure
+    DB --> ORM: Insert failed / SQL exception
+    ORM --> PC: Marketplace post persistence failed
+    PC --> FE: 500 Internal Server Error
+    FE --> User: Display system error while creating post
+end
+
+
+== Delete Marketplace Post ==
+
+User -> FE: Select post and confirm deletion
+FE -> Apache: DELETE /posts/{post}
+
+alt Route exists
+    Apache -> MW: Forward HTTP delete post request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display "Delete post route not found" error
+end
+
+alt Valid + Authorized
+    MW -> PC: Pass authenticated and authorized delete post request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden
+    FE --> User: Display validation or authorization error
+end
+
+PC -> ORM: Load Post model from route binding
+ORM -> DB: SELECT * FROM posts WHERE id = ? LIMIT 1
+
+alt Post found
+    DB --> ORM: Post record
+    ORM --> PC: Marketplace post retrieved
+else Post not found
+    DB --> ORM: Empty result set
+    ORM --> PC: Post not found
+    PC --> FE: 404 Not Found
+    FE --> User: Display selected post not found error
+end
+
+PC -> PC: Check if post.user_id equals auth()->id() OR user role is Admin Super/Admin Mercado
+
+alt User is owner or marketplace admin
+    PC -> PC: Build image path list from photo_1_url, photo_2_url, and photo_3_url
+
+    loop For each stored image
+        alt Image path exists
+            PC -> Storage: Storage::disk('public')->delete(imagePath)
+            Storage --> PC: Stored image removed
+        else Image path is null
+            note right of PC: Skip empty image field
+        end
+    end
+
+    PC -> ORM: post->delete()
+    ORM -> DB: DELETE FROM posts WHERE id = ?
+
+    alt Delete success
+        DB --> ORM: Delete successful
+        ORM --> PC: Marketplace post removed
+        PC --> FE: Return JSON { success: true, message:}
+        FE --> User: Show post deletion success confirmation "Publicación fue eliminada exitosamente"
+    else Delete failure
+        DB --> ORM: Delete failed / SQL exception
+        ORM --> PC: Marketplace post deletion failed
+        PC --> FE: 500 Internal Server Error
+        FE --> User: Display system error while deleting post
+    end
+
+else User is not authorized
+    PC --> FE: 403 Forbidden
+    FE --> User: Show ownership or authorization error
+end
+
+@enduml

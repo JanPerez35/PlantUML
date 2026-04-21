@@ -1,0 +1,173 @@
+@startuml
+
+title Unread Message Reminder Email Sequence Diagram
+
+actor User
+
+participant "Frontend (Website)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "MessageController" as MC
+  participant "Eloquent ORM" as ORM
+  participant "Unread Reminder Job\n(SendUnreadMessageReminder)" as Job
+  participant "Email Service" as EmailService
+  participant "GenericMail Mailable" as GenericMail
+end box
+
+participant "Laravel Queue Worker" as QueueWorker
+participant "Laravel Mail Queue / SMTP" as Mailer
+participant "Gmail" as Gmail
+database "MariaDB Database" as DB
+
+note right of User
+It is assumed the User is
+authenticated/authorized unless an exception occurs.
+end note
+
+== Send Chat Message and Schedule Reminder ==
+
+User -> FE: Type message and click "Send"
+activate User
+activate FE
+activate Apache
+activate MW
+activate MC
+activate ORM
+activate Job
+activate QueueWorker
+activate EmailService
+activate GenericMail
+activate Mailer
+activate Gmail
+activate DB
+
+FE -> Apache: POST /sendMessage
+
+alt Route exists
+    Apache -> MW: Forward HTTP send message request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display "Send message route not found" error
+end
+
+alt Valid + Authorized
+    MW -> MC: Pass validated and authorized message request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    FE --> User: Display validation or authorization error
+end
+
+MC -> ORM: Message::create(chat_id, user_id, content, status, sent_at, read_at)
+ORM -> DB: INSERT INTO messages (chat_id, user_id, content, status, sent_at, read_at, created_at) VALUES (...)
+
+alt Message insert success
+    DB --> ORM: Insert successful
+    ORM --> MC: Message model persisted
+
+    MC -> Job: dispatch(new SendUnreadMessageReminder(messageId))->delay(...)
+    Job --> MC: Reminder job scheduled
+
+    MC --> FE: Return JSON message response
+    FE --> User: Show message sent confirmation
+else Message insert failure
+    DB --> ORM: Insert failed / SQL exception
+    ORM --> MC: Message persistence failed
+    MC --> FE: 500 Internal Server Error
+    FE --> User: Display system error while sending message
+end
+
+== Delayed Reminder Job Execution ==
+
+QueueWorker -> Job: handle(EmailService)
+
+Job -> ORM: Message::find(messageId)
+ORM -> DB: SELECT * FROM messages WHERE id = ?
+
+alt Message exists
+    DB --> ORM: Message record
+    ORM --> Job: Message loaded
+else Message missing
+    DB --> ORM: Empty result set
+    ORM --> Job: Message not found
+    note right of Job: Stop job execution\nNo reminder email sent
+end
+
+alt Message still unread
+    Job -> ORM: Chat::find(message.chat_id)
+    ORM -> DB: SELECT * FROM chats WHERE id = ?
+else Message already read
+    note right of Job: Stop job execution\nread_at is not null
+end
+
+alt Chat exists
+    DB --> ORM: Chat record
+    ORM --> Job: Chat loaded
+else Chat missing
+    DB --> ORM: Empty result set
+    ORM --> Job: Chat not found
+    note right of Job: Stop job execution\nNo reminder email sent
+end
+
+alt Reminder not already sent
+    Job -> Job: Determine recipientId from buyer_user_id / seller_user_id
+else Reminder already sent
+    note right of Job: Stop job execution\nunread_reminder_sent_at already set
+end
+
+alt Valid recipientId
+    Job -> ORM: User::find(recipientId)
+    ORM -> DB: SELECT * FROM users WHERE id = ?
+else Invalid recipient
+    note right of Job: Stop job execution\nNo valid reminder recipient
+end
+
+alt Recipient exists and has email
+    DB --> ORM: Recipient user record
+    ORM --> Job: Recipient loaded
+
+    Job -> ORM: Message::where(chat_id = chat.id)->where(user_id != recipientId)->whereNull(read_at)->exists()
+    ORM -> DB: SELECT EXISTS(...) FROM messages WHERE chat_id = ? AND user_id != ? AND read_at IS NULL
+else Recipient missing / no email
+    note right of Job: Stop job execution\nRecipient invalid for reminder
+end
+
+alt Unread messages still exist
+    DB --> ORM: Exists = true
+    ORM --> Job: Unread messages confirmed
+
+    Job -> EmailService: send(recipient.email, "Tienes mensajes sin leer en MAIKINE", messageBody)
+    EmailService -> GenericMail: new GenericMail(subjectText, messageText)
+    GenericMail --> EmailService: Mailable instance created
+    EmailService -> Mailer: Mail::to(recipient.email)->queue(GenericMail)
+
+    alt Email queued successfully
+        Mailer -> Gmail: Deliver unread reminder email
+        Gmail --> Mailer: Delivery accepted
+        Mailer --> EmailService: Email queued/sent successfully
+        EmailService --> Job: Reminder email request completed
+
+        Job -> ORM: Chat::update(unread_reminder_sent_at = now())
+        ORM -> DB: UPDATE chats SET unread_reminder_sent_at = CURRENT_TIMESTAMP WHERE id = ?
+
+        alt Chat update success
+            DB --> ORM: Update successful
+            ORM --> Job: Reminder timestamp persisted
+        else Chat update failure
+            DB --> ORM: Update failed / SQL exception
+            ORM --> Job: Reminder timestamp update failed
+        end
+
+    else Email queue/send failure
+        Mailer --> EmailService: Queue / SMTP failure
+        EmailService --> Job: Reminder email failed
+    end
+
+else No unread messages remain
+    DB --> ORM: Exists = false
+    ORM --> Job: No unread messages pending
+    note right of Job: Stop job execution\nNo reminder email sent
+end
+
+@enduml

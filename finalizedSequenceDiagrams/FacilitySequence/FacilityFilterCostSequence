@@ -1,0 +1,140 @@
+@startuml
+
+title Facility Filter Cost Reports Sequence Diagram
+
+actor "Facility Admin" as Admin
+
+participant "Frontend (Web Portal)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "FacilityCostController" as FC
+  participant "Eloquent ORM" as ORM
+end box
+
+database "MariaDB Database" as DB
+
+note left of DB
+It is assumed the Facility Admin is
+authenticated/authorized unless an exception occurs.
+end note
+
+== Open Facility Management View ==
+
+Admin -> FE: Open facility management page
+activate Admin
+activate FE
+activate Apache
+activate MW
+activate FC
+activate ORM
+activate DB
+
+FE -> Apache: GET /facility_management?report_type=&report_month=&report_year=&filter_classroom=
+
+alt Route exists
+    Apache -> MW: Forward HTTP facility management request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display "Facility management route not found" error
+end
+
+alt Valid + Authorized
+    MW -> FC: Pass validated and authorized facility management request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden
+    FE --> Admin: Display validation or authorization error
+end
+
+FC -> FC: Read report_type, report_month, report_year, filter_classroom from request
+
+FC -> ORM: FacilityCost::where(pending_deletion = false)->orderBy(classroom_name)->get()
+ORM -> DB: SELECT * FROM facility_costs WHERE pending_deletion = 0 ORDER BY classroom_name
+
+alt Active classrooms query success
+    DB --> ORM: Active classroom result set
+    ORM --> FC: facilityCosts collection
+else Active classrooms query failure
+    DB --> ORM: Query failed / SQL exception
+    ORM --> FC: Active classroom retrieval failed
+    FC --> FE: 500 Internal Server Error
+    FE --> Admin: Display system error while loading classrooms
+end
+
+FC -> ORM: FacilityCost::orderBy(classroom_name)->get()
+ORM -> DB: SELECT * FROM facility_costs ORDER BY classroom_name
+
+alt All classrooms query success
+    DB --> ORM: Full classroom result set
+    ORM --> FC: allFacilityCosts collection
+else All classrooms query failure
+    DB --> ORM: Query failed / SQL exception
+    ORM --> FC: Classroom history retrieval failed
+    FC --> FE: 500 Internal Server Error
+    FE --> Admin: Display system error while loading report filters
+end
+
+FC -> ORM: FacilityCostReportItem::with(facilityCost)->orderBy(event_date, desc)
+ORM -> DB: SELECT facility_cost_report_items with related facility_costs ORDER BY event_date DESC
+
+alt Monthly report filter selected
+    FC -> ORM: Apply whereYear(event_date, report_year) and whereMonth(event_date, report_month)
+    ORM -> DB: SELECT filtered monthly facility cost report items
+else Annual report filter selected
+    FC -> ORM: Apply whereYear(event_date, report_year)
+    ORM -> DB: SELECT filtered annual facility cost report items
+else No time filter selected
+    note right of FC: Use unfiltered event history
+end
+
+alt Classroom filter selected
+    FC -> ORM: Apply whereHas(facilityCost.classroom_name = filter_classroom)
+    ORM -> DB: SELECT report items filtered by classroom name
+else No classroom filter selected
+    note right of FC: Include all classrooms
+end
+
+alt Report items query success
+    DB --> ORM: Filtered report item result set
+    ORM --> FC: items collection
+else Report items query failure
+    DB --> ORM: Query failed / SQL exception
+    ORM --> FC: Report item retrieval failed
+    FC --> FE: 500 Internal Server Error
+    FE --> Admin: Display system error while loading cost report items
+end
+
+FC -> FC: grandTotal = items.sum(calculated_cost)
+
+FC -> ORM: FacilityCostReportItem::selectRaw(MIN(YEAR(event_date)) as min_year)->value(min_year)
+ORM -> DB: SELECT MIN(YEAR(event_date)) AS min_year FROM facility_cost_report_items
+
+alt Min year query success
+    DB --> ORM: min_year result
+    ORM --> FC: minYear loaded
+else Min year query failure
+    DB --> ORM: Query failed / SQL exception
+    ORM --> FC: Min year retrieval failed
+    FC --> FE: 500 Internal Server Error
+    FE --> Admin: Display system error while calculating minimum report year
+end
+
+FC -> ORM: FacilityCostReportItem::selectRaw(MAX(YEAR(event_date)) as max_year)->value(max_year)
+ORM -> DB: SELECT MAX(YEAR(event_date)) AS max_year FROM facility_cost_report_items
+
+alt Max year query success
+    DB --> ORM: max_year result
+    ORM --> FC: maxYear loaded
+else Max year query failure
+    DB --> ORM: Query failed / SQL exception
+    ORM --> FC: Max year retrieval failed
+    FC --> FE: 500 Internal Server Error
+    FE --> Admin: Display system error while calculating maximum report year
+end
+
+FC -> FC: Normalize minYear and maxYear fallback values
+FC --> FE: Return facility_management view with filtered data
+FE --> Admin: Display facility report items, totals, and filters
+
+@enduml

@@ -1,0 +1,112 @@
+@startuml
+
+title User Inventory Add to Cart Sequence Diagram
+
+actor User
+
+participant "Frontend (Website)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "CartController" as CC
+  participant "Eloquent ORM" as ORM
+end box
+
+database "MariaDB Database" as DB
+
+note right of User
+It is assumed the User is
+authenticated/authorized unless an exception occurs.
+end note
+
+
+== Open Borrow Modal ==
+
+User -> FE: Click "Pedir Prestado" on selected item
+activate User
+activate FE
+activate Apache
+activate MW
+activate CC
+activate ORM
+activate DB
+
+FE -> FE: Load selected item data into borrow modal
+note right of FE
+Populate modal with:
+- equipment_id
+- item name
+- image
+- available stock
+- default quantity = 1
+end note
+
+alt Item has available stock
+    FE --> User: Display borrow modal
+else Item unavailable
+    FE --> User: Borrow button remains disabled
+end
+
+
+== Validate Quantity ==
+
+User -> FE: Enter requested quantity
+
+alt Quantity is empty
+    FE --> User: Display "Debes pedir al menos 1 unidad."
+else Quantity is not numeric
+    FE --> User: Display "Debes ingresar un número válido."
+else Quantity is less than 1
+    FE --> User: Display "Debes pedir al menos 1 unidad."
+else Quantity exceeds available stock
+    FE --> User: Display "No puedes pedir más de {stock} unidades disponibles."
+else Quantity valid
+    FE --> User: Keep quantity field valid
+end
+
+
+== Add Item to Cart ==
+
+User -> FE: Click "Añadir al Carrito"
+FE -> Apache: POST /cart/add
+
+alt Route exists
+    Apache -> MW: Forward HTTP add-to-cart request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display "Add to cart route not found" error
+end
+
+alt Valid + Authorized
+    MW -> CC: Pass authenticated and authorized add-to-cart request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    FE --> User: Display validation or authorization error
+end
+
+CC -> ORM: Load equipment by submitted equipment_id
+ORM -> DB: SELECT * FROM equipment WHERE id = ? LIMIT 1
+
+alt Equipment found
+    DB --> ORM: Equipment record
+    ORM --> CC: Equipment retrieved
+else Equipment not found
+    DB --> ORM: Empty result set
+    ORM --> CC: Equipment not found
+    CC --> FE: 404 Not Found
+    FE --> User: Display selected equipment not found error
+end
+
+CC -> CC: Validate requested quantity against available stock
+
+alt Requested quantity valid
+    CC -> CC: Add or update equipment entry in session cart
+    CC --> FE: Redirect back with cart success message
+    FE --> User: Show cart success confirmation "Item añadido al carrito"
+else Requested quantity invalid
+    CC --> FE: 422 Unprocessable Entity / Redirect back with validation error
+    FE --> User: Display quantity validation error
+end
+
+@enduml

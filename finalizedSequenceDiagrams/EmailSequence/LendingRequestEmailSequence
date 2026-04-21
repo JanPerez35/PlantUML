@@ -1,0 +1,352 @@
+@startuml
+
+title Lending Request Email Notification Sequence Diagram
+
+actor User
+actor "Inventory Admin" as Admin
+
+participant "Frontend (Website)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "LendingController" as LC
+  participant "Eloquent ORM" as ORM
+  participant "Email Service" as EmailService
+  participant "GenericMail Mailable" as GenericMail
+end box
+
+participant "Laravel Mail Queue / SMTP" as Mailer
+participant "Gmail" as Gmail
+database "MariaDB Database" as DB
+
+note left of DB
+This diagram only shows lending flows
+that can trigger email notifications.
+Direct single-item borrow() is excluded
+because it does not send email.
+end note
+
+== User Checkout Cart Request ==
+
+User -> FE: Submit lending checkout form
+activate User
+activate FE
+activate Apache
+activate MW
+activate LC
+activate ORM
+activate EmailService
+activate GenericMail
+activate Mailer
+activate Gmail
+activate DB
+
+FE -> Apache: POST /checkoutCart
+
+alt Route exists
+    Apache -> MW: Forward HTTP checkout request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display "Checkout route not found" error
+end
+
+alt Valid + Authorized
+    MW -> LC: Pass validated and authorized checkout request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    FE --> User: Display validation or authorization error
+end
+
+LC -> LC: Validate pickup_date, pickup_time, accept_terms, cart_quantities
+alt Special case request
+    LC -> LC: Validate return_date and special_reason
+else Standard request
+    note right of LC: return_date optional\nspecial_reason optional
+end
+
+alt Validation success
+    LC -> LC: cart = session('cart')
+else Validation failure
+    LC --> FE: 422 Unprocessable Entity
+    FE --> User: Display checkout form validation error
+end
+
+alt Cart not empty
+    LC -> ORM: Revalidate cart items against current availability
+    ORM -> DB: SELECT equipment availability for each cart item
+else Empty cart
+    LC --> FE: Redirect back with "El carrito está vacío."
+    FE --> User: Display empty cart error
+end
+
+alt Cart still contains available items
+    LC -> ORM: Begin locked transaction for lending creation
+else All cart items unavailable
+    LC --> FE: Redirect to kinventory with unavailable cart error
+    FE --> User: Display "Los equipos del carrito ya no están disponibles."
+end
+
+LC -> ORM: Lending::create(user_id, special_reason, start_time, end_time, flag, status)
+ORM -> DB: INSERT INTO lendings (...)
+
+alt Lending insert success
+    DB --> ORM: Lending created
+    ORM --> LC: Lending persisted
+else Lending insert failure
+    DB --> ORM: Insert failed / SQL exception
+    ORM --> LC: Lending persistence failed
+    LC --> FE: 500 Internal Server Error
+    FE --> User: Display system error while creating lending request
+end
+
+loop For each cart item
+    LC -> ORM: Equipment::lockForUpdate()->findOrFail(equipment_id)
+    ORM -> DB: SELECT * FROM equipment WHERE id = ? FOR UPDATE
+
+    alt Equipment exists and quantity valid
+        DB --> ORM: Equipment row locked
+        ORM --> LC: Equipment loaded
+
+        LC -> ORM: LendingItem::create(lending_id, equipment_id, quantity, item_status)
+        ORM -> DB: INSERT INTO lending_items (...)
+
+        alt LendingItem insert success
+            DB --> ORM: Insert successful
+            ORM --> LC: Lending item persisted
+        else LendingItem insert failure
+            DB --> ORM: Insert failed / SQL exception
+            ORM --> LC: Lending item persistence failed
+            LC --> FE: 500 Internal Server Error
+            FE --> User: Display system error while saving lending items
+        end
+
+        alt Standard request
+            LC -> ORM: equipment->save(available_quantity -= quantity)
+            ORM -> DB: UPDATE equipment SET available_quantity = ? WHERE id = ?
+        else Special case request
+            note right of LC: Do not decrement stock yet\nrequest remains pending
+        end
+
+    else Equipment missing / insufficient quantity
+        DB --> ORM: Empty result set / locked row with insufficient stock
+        ORM --> LC: Equipment validation failed
+        LC --> FE: 500 Internal Server Error / Exception
+        FE --> User: Display unavailable quantity error
+    end
+end
+
+LC -> ORM: lending->load('user')
+ORM -> DB: SELECT related user for lending
+
+alt Standard request auto-approved
+    LC -> EmailService: send(lending.user.email, "Solicitud de item aprobada", approvalMessage)
+    EmailService -> GenericMail: new GenericMail(subjectText, messageText)
+    GenericMail --> EmailService: Mailable instance created
+    EmailService -> Mailer: Mail::to(user.email)->queue(GenericMail)
+
+    alt Email queued successfully
+        Mailer -> Gmail: Deliver lending approval notification
+        Gmail --> Mailer: Delivery accepted
+        Mailer --> EmailService: Email queued/sent successfully
+        EmailService --> LC: Approval email completed
+    else Email queue/send failure
+        Mailer --> EmailService: Queue / SMTP failure
+        EmailService --> LC: Approval email failed
+    end
+
+else Special case request pending
+    note right of LC: No immediate approval email sent\nRequest remains pending for admin review
+end
+
+LC --> FE: Redirect to kinventory with success message
+FE --> User: Show checkout request confirmation
+
+== Admin Approves Pending Lending Request ==
+
+Admin -> FE: Click "Approve" on pending lending
+FE -> Apache: POST /admin/approveRequest/{id}
+
+alt Route exists
+    Apache -> MW: Forward HTTP approve lending request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display "Approve request route not found" error
+end
+
+alt Valid + Authorized
+    MW -> LC: Pass validated and authorized approval request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    FE --> Admin: Display validation or authorization error
+end
+
+LC -> ORM: Lending::with(items, user)->findOrFail(id)
+ORM -> DB: SELECT lending with related items and user WHERE id = ?
+
+alt Lending found
+    DB --> ORM: Lending with items and user
+    ORM --> LC: Lending loaded
+else Lending not found
+    DB --> ORM: Empty result set
+    ORM --> LC: Lending not found
+    LC --> FE: 404 Not Found
+    FE --> Admin: Display selected lending not found error
+end
+
+loop For each lending item
+    LC -> ORM: Equipment::lockForUpdate()->findOrFail(item.equipment_id)
+    ORM -> DB: SELECT * FROM equipment WHERE id = ? FOR UPDATE
+
+    alt Enough inventory available
+        DB --> ORM: Equipment row locked
+        ORM --> LC: Equipment loaded
+        LC -> ORM: equipment->save(available_quantity -= item.quantity)
+        ORM -> DB: UPDATE equipment SET available_quantity = ? WHERE id = ?
+
+        LC -> ORM: item->save(item_status = 'approved')
+        ORM -> DB: UPDATE lending_items SET item_status = 'approved' WHERE id = ?
+    else Insufficient inventory
+        DB --> ORM: Locked row with insufficient stock
+        ORM --> LC: Inventory approval validation failed
+        LC --> FE: 500 Internal Server Error / Exception
+        FE --> Admin: Display insufficient inventory approval error
+    end
+end
+
+LC -> ORM: lending->save(status = 'approved')
+ORM -> DB: UPDATE lendings SET status = 'approved' WHERE id = ?
+
+alt Lending approval update success
+    DB --> ORM: Update successful
+    ORM --> LC: Lending approved
+else Lending approval update failure
+    DB --> ORM: Update failed / SQL exception
+    ORM --> LC: Lending approval persistence failed
+    LC --> FE: 500 Internal Server Error
+    FE --> Admin: Display system error while approving lending
+end
+
+alt User exists and has email
+    LC -> EmailService: send(lending.user.email, "Solicitud de item aprobada", approvalMessage)
+    EmailService -> GenericMail: new GenericMail(subjectText, messageText)
+    GenericMail --> EmailService: Mailable instance created
+    EmailService -> Mailer: Mail::to(user.email)->queue(GenericMail)
+
+    alt Email queued successfully
+        Mailer -> Gmail: Deliver manual approval email
+        Gmail --> Mailer: Delivery accepted
+        Mailer --> EmailService: Email queued/sent successfully
+        EmailService --> LC: Approval email completed
+    else Email queue/send failure
+        Mailer --> EmailService: Queue / SMTP failure
+        EmailService --> LC: Approval email failed
+    end
+else No user email available
+    note right of LC: No approval email sent
+end
+
+LC --> FE: Redirect to borrows with success message
+FE --> Admin: Show lending approval confirmation
+
+== Admin Rejects Pending Lending Request ==
+
+Admin -> FE: Click "Reject" on pending lending
+FE -> Apache: POST /admin/rejectRequest/{id}
+
+alt Route exists
+    Apache -> MW: Forward HTTP reject lending request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display "Reject request route not found" error
+end
+
+alt Valid + Authorized
+    MW -> LC: Pass validated and authorized rejection request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    FE --> Admin: Display validation or authorization error
+end
+
+LC -> ORM: Lending::with(items, user)->findOrFail(id)
+ORM -> DB: SELECT lending with related items and user WHERE id = ?
+
+alt Lending found
+    DB --> ORM: Lending with items and user
+    ORM --> LC: Lending loaded
+else Lending not found
+    DB --> ORM: Empty result set
+    ORM --> LC: Lending not found
+    LC --> FE: 404 Not Found
+    FE --> Admin: Display selected lending not found error
+end
+
+loop For each lending item
+    LC -> ORM: item->save(item_status = 'rejected')
+    ORM -> DB: UPDATE lending_items SET item_status = 'rejected' WHERE id = ?
+end
+
+LC -> ORM: lending->save(status = 'rejected')
+ORM -> DB: UPDATE lendings SET status = 'rejected' WHERE id = ?
+
+alt Rejection update success
+    DB --> ORM: Update successful
+    ORM --> LC: Lending rejection persisted
+else Rejection update failure
+    DB --> ORM: Update failed / SQL exception
+    ORM --> LC: Lending rejection persistence failed
+    LC --> FE: 500 Internal Server Error
+    FE --> Admin: Display system error while rejecting lending
+end
+
+alt User exists and has email
+    LC -> ORM: User::where(role = 'Admin Inventario')->where(status = 'Activo')->first()
+    ORM -> DB: SELECT * FROM users WHERE role = 'Admin Inventario' AND status = 'Activo' LIMIT 1
+
+    alt Inventory admin lookup success
+        DB --> ORM: Active inventory admin or empty result
+        ORM --> LC: Inventory admin lookup result
+    else Inventory admin lookup failure
+        DB --> ORM: Query failed / SQL exception
+        ORM --> LC: Inventory admin lookup failed
+        LC --> FE: 500 Internal Server Error
+        FE --> Admin: Display system error while retrieving admin contact
+    end
+
+    LC -> ORM: User::where(role = 'Admin Super')->where(status = 'Activo')->first()
+    ORM -> DB: SELECT * FROM users WHERE role = 'Admin Super' AND status = 'Activo' LIMIT 1
+
+    alt Super admin lookup success
+        DB --> ORM: Active super admin or empty result
+        ORM --> LC: Super admin lookup result
+    else Super admin lookup failure
+        DB --> ORM: Query failed / SQL exception
+        ORM --> LC: Super admin lookup failed
+        LC --> FE: 500 Internal Server Error
+        FE --> Admin: Display system error while retrieving fallback contact
+    end
+
+    LC -> LC: adminEmail = inventoryAdmin.email ?? superAdmin.email ?? fallback extension
+
+    LC -> EmailService: send(lending.user.email, "Solicitud de item denegada", rejectionMessageWithAdminContact)
+    EmailService -> GenericMail: new GenericMail(subjectText, messageText)
+    GenericMail --> EmailService: Mailable instance created
+    EmailService -> Mailer: Mail::to(user.email)->queue(GenericMail)
+
+    alt Email queued successfully
+        Mailer -> Gmail: Deliver lending rejection email
+        Gmail --> Mailer: Delivery accepted
+        Mailer --> EmailService: Email queued/sent successfully
+        EmailService --> LC: Rejection email completed
+    else Email queue/send failure
+        Mailer --> EmailService: Queue / SMTP failure
+        EmailService --> LC: Rejection email failed
+    end
+else No user email available
+    note right of LC: No rejection email sent
+end
+
+LC --> FE: Redirect to borrows with success message
+FE --> Admin: Show lending rejection confirmation
+
+@enduml

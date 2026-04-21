@@ -1,0 +1,143 @@
+@startuml
+
+title Marketplace Seller Review and User Report Submission Sequence Diagram
+
+actor User
+
+participant "Frontend (Website)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "ReviewController" as RC
+  participant "UserReportController" as URC
+  participant "Eloquent ORM" as ORM
+end box
+
+database "MariaDB Database" as DB
+
+note right of User
+It is assumed the User is
+authenticated/authorized unless an exception occurs.
+end note
+
+
+== Submit Seller Rating ==
+
+User -> FE: Select seller rating and click "Enviar Calificación"
+activate User
+activate FE
+activate Apache
+activate MW
+activate RC
+activate URC
+activate ORM
+activate DB
+
+FE -> Apache: POST /marketplace/{post}/review
+
+alt Route exists
+    Apache -> MW: Forward HTTP seller review request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display "Seller review route not found" error
+end
+
+alt Valid + Authorized
+    MW -> RC: Pass authenticated and authorized seller review request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    FE --> User: Display validation or authorization error
+end
+
+RC -> ORM: Resolve target post and seller
+ORM -> DB: SELECT post and seller data needed for review submission
+
+alt Post and seller found
+    DB --> ORM: Post and seller record
+    ORM --> RC: Review target retrieved
+else Post or seller not found
+    DB --> ORM: Empty result set
+    ORM --> RC: Review target not found
+    RC --> FE: 404 Not Found / 422 Unprocessable Entity
+    FE --> User: Display selected seller not available for review
+end
+
+RC -> ORM: Create or update seller review
+ORM -> DB: INSERT INTO reviews (...) OR UPDATE existing review
+
+alt Review persistence success
+    DB --> ORM: Insert/update successful
+    ORM --> RC: Seller review persisted
+
+    RC -> ORM: Recalculate seller rating average and review count
+    ORM -> DB: SELECT AVG(rating), COUNT(*) FROM reviews WHERE seller_id = ?
+
+    alt Aggregate refresh success
+        DB --> ORM: Updated seller rating metrics
+        ORM --> RC: Seller rating aggregates retrieved
+        RC --> FE: Return success response with updated rating metrics
+        FE --> User: Show rating success confirmation
+    else Aggregate refresh failure
+        DB --> ORM: Query failed / SQL exception
+        ORM --> RC: Seller rating aggregate retrieval failed
+        RC --> FE: 500 Internal Server Error
+        FE --> User: Display system error while refreshing seller rating
+    end
+
+else Review persistence failure
+    DB --> ORM: Insert/update failed / SQL exception
+    ORM --> RC: Seller review persistence failed
+    RC --> FE: 500 Internal Server Error
+    FE --> User: Display system error while submitting seller rating
+end
+
+
+== Submit User Report ==
+
+User -> FE: Select report reason, write description, and click "Enviar Querella"
+FE -> Apache: POST /reports
+
+alt Route exists
+    Apache -> MW: Forward HTTP user report request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display "User report route not found" error
+end
+
+alt Valid + Authorized
+    MW -> URC: Pass authenticated and authorized report request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    FE --> User: Display validation or authorization error
+end
+
+URC -> ORM: Resolve reported user and report target context
+ORM -> DB: SELECT reported user and related reporting context
+
+alt Report target found
+    DB --> ORM: Report target record
+    ORM --> URC: Report target retrieved
+else Report target not found
+    DB --> ORM: Empty result set
+    ORM --> URC: Report target not found
+    URC --> FE: 404 Not Found / 422 Unprocessable Entity
+    FE --> User: Display selected user not available for reporting
+end
+
+URC -> ORM: Create marketplace user report with reason and description
+ORM -> DB: INSERT INTO reports (...)
+
+alt Report persistence success
+    DB --> ORM: Insert successful
+    ORM --> URC: Marketplace report persisted
+    URC --> FE: Return success response
+    FE --> User: Show report submission confirmation
+else Report persistence failure
+    DB --> ORM: Insert failed / SQL exception
+    ORM --> URC: Marketplace report persistence failed
+    URC --> FE: 500 Internal Server Error
+    FE --> User: Display system error while submitting report
+end
+
+@enduml

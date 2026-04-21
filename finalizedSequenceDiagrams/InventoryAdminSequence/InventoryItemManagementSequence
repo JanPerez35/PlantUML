@@ -1,0 +1,289 @@
+@startuml
+
+title Inventory Admin Item Management Sequence Diagram
+
+actor "Inventory Admin" as Admin
+participant "Frontend Website" as Frontend
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "EquipmentController" as EC
+  participant "Eloquent ORM" as ORM
+end box
+
+database "MariaDB Database" as DB
+participant "Public Storage" as Storage
+
+note right of Admin
+Inventory Admin can browse, search,
+filter, create, edit, and delete
+inventory items from the
+administrative inventory screen.
+end note
+
+note left of DB
+It is assumed the Inventory Admin is
+authenticated/authorized unless an exception occurs.
+end note
+
+
+== View / Search / Filter Inventory ==
+
+Admin -> Frontend: Open inventory management page or apply search/category filters
+activate Admin
+activate Frontend
+activate Apache
+activate MW
+activate EC
+activate ORM
+activate DB
+activate Storage
+
+Frontend -> Apache: GET /inventory_management?search=&category=
+
+alt Route exists
+    Apache -> MW: Forward HTTP inventory management request
+else Route not found
+    Apache --> Frontend: 404 Not Found
+    Frontend --> Admin: Display "Inventory management route not found" error
+end
+
+alt Valid + Authorized
+    MW -> EC: Pass authenticated and authorized inventory request
+else Validation/Auth error
+    MW --> Frontend: 401 Unauthorized / 403 Forbidden
+    Frontend --> Admin: Display validation or authorization error
+end
+
+EC -> ORM: Equipment::where(pending_deletion = false)->withCount(open_lendings_count)
+ORM -> DB: SELECT equipment records with open lendings count WHERE pending_deletion = 0
+
+alt Search filter present
+    EC -> ORM: Apply where(description LIKE ? OR category LIKE ? OR location LIKE ?)
+    ORM -> DB: SELECT filtered equipment by search term
+else No search filter
+    note right of EC: Keep unfiltered equipment query
+end
+
+alt Category filter present
+    EC -> ORM: Apply where(category = request.category)
+    ORM -> DB: SELECT filtered equipment by category
+else No category filter
+    note right of EC: Keep all categories
+end
+
+alt Inventory query success
+    DB --> ORM: Equipment result set
+    ORM --> EC: Paginated items collection
+else Inventory query failure
+    DB --> ORM: Query failed / SQL exception
+    ORM --> EC: Equipment retrieval failed
+    EC --> Frontend: 500 Internal Server Error
+    Frontend --> Admin: Display system error while loading inventory
+end
+
+EC -> ORM: Equipment::where(pending_deletion = false)->distinct()->pluck(category)
+ORM -> DB: SELECT DISTINCT category FROM equipment WHERE pending_deletion = 0
+
+EC -> ORM: Equipment::where(pending_deletion = false)->distinct()->pluck(location)
+ORM -> DB: SELECT DISTINCT location FROM equipment WHERE pending_deletion = 0
+
+alt Category/location lookup success
+    DB --> ORM: Distinct categories and locations
+    ORM --> EC: Filter option lists
+    EC --> Frontend: Return inventory_management view
+    Frontend --> Admin: Display filtered inventory cards and action buttons
+else Category/location lookup failure
+    DB --> ORM: Query failed / SQL exception
+    ORM --> EC: Filter option retrieval failed
+    EC --> Frontend: 500 Internal Server Error
+    Frontend --> Admin: Display system error while loading filter options
+end
+
+
+== Add Inventory Item ==
+
+Admin -> Frontend: Submit "Agregar Item" form
+Frontend -> Apache: POST /inventory_management
+
+alt Route exists
+    Apache -> MW: Forward HTTP add item request
+else Route not found
+    Apache --> Frontend: 404 Not Found
+    Frontend --> Admin: Display "Add inventory item route not found" error
+end
+
+alt Valid + Authorized
+    MW -> EC: Pass authenticated and authorized add item request
+else Validation/Auth error
+    MW --> Frontend: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    Frontend --> Admin: Display validation or authorization error
+end
+
+EC -> EC: Validate description, category, location, quantity, available_quantity, image
+
+alt Validation success
+    EC -> Storage: Store uploaded image in public/equipment_photos
+    Storage --> EC: imagePath returned
+else Validation failure
+    EC --> Frontend: 422 Unprocessable Entity
+    Frontend --> Admin: Display invalid add item form input error
+end
+
+EC -> ORM: Equipment::create(description, category, quantity, available_quantity, location, equipment_photo_url)
+ORM -> DB: INSERT INTO equipment (...)
+
+alt Insert success
+    DB --> ORM: Insert successful
+    ORM --> EC: Equipment item persisted
+    EC --> Frontend: Redirect back with success toast/session message
+    Frontend --> Admin: Show "Item agregado correctamente"
+else Insert failure
+    DB --> ORM: Insert failed / SQL exception
+    ORM --> EC: Equipment persistence failed
+    EC --> Frontend: 500 Internal Server Error
+    Frontend --> Admin: Display system error while adding item
+end
+
+
+== Edit Inventory Item ==
+
+Admin -> Frontend: Submit "Editar Item" form
+Frontend -> Apache: PUT /equipment/{id}
+
+alt Route exists
+    Apache -> MW: Forward HTTP edit item request
+else Route not found
+    Apache --> Frontend: 404 Not Found
+    Frontend --> Admin: Display "Edit inventory item route not found" error
+end
+
+alt Valid + Authorized
+    MW -> EC: Pass authenticated and authorized edit item request
+else Validation/Auth error
+    MW --> Frontend: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    Frontend --> Admin: Display validation or authorization error
+end
+
+EC -> ORM: Equipment::findOrFail(id)
+ORM -> DB: SELECT * FROM equipment WHERE id = ? LIMIT 1
+
+alt Item found
+    DB --> ORM: Equipment record
+    ORM --> EC: Existing item loaded
+else Item not found
+    DB --> ORM: Empty result set
+    ORM --> EC: Equipment not found
+    EC --> Frontend: 404 Not Found
+    Frontend --> Admin: Display selected item not found error
+end
+
+EC -> EC: Validate description, category, location, quantity, available_quantity, optional image
+
+alt Validation success
+    alt New image uploaded
+        EC -> Storage: Delete previous image from public storage
+        Storage --> EC: Previous image removed
+        EC -> Storage: Store new uploaded image
+        Storage --> EC: New imagePath returned
+    else No new image uploaded
+        note right of EC: Keep current equipment_photo_url
+    end
+
+    EC -> ORM: item->update(description, category, quantity, available_quantity, location, equipment_photo_url)
+    ORM -> DB: UPDATE equipment SET ... WHERE id = ?
+
+    alt Update success
+        DB --> ORM: Update successful
+        ORM --> EC: Equipment update persisted
+        EC --> Frontend: Redirect back with success toast/session message
+        Frontend --> Admin: Show "Item actualizado correctamente"
+    else Update failure
+        DB --> ORM: Update failed / SQL exception
+        ORM --> EC: Equipment update failed
+        EC --> Frontend: 500 Internal Server Error
+        Frontend --> Admin: Display system error while editing item
+    end
+
+else Validation failure
+    EC --> Frontend: 422 Unprocessable Entity
+    Frontend --> Admin: Display invalid edit item form input error
+end
+
+
+== Delete Inventory Item ==
+
+Admin -> Frontend: Confirm "Eliminar Item"
+Frontend -> Apache: DELETE /equipment/{id}
+
+alt Route exists
+    Apache -> MW: Forward HTTP delete item request
+else Route not found
+    Apache --> Frontend: 404 Not Found
+    Frontend --> Admin: Display "Delete inventory item route not found" error
+end
+
+alt Valid + Authorized
+    MW -> EC: Pass authenticated and authorized delete item request
+else Validation/Auth error
+    MW --> Frontend: 401 Unauthorized / 403 Forbidden
+    Frontend --> Admin: Display validation or authorization error
+end
+
+EC -> ORM: Equipment::findOrFail(id)
+ORM -> DB: SELECT * FROM equipment WHERE id = ? LIMIT 1
+
+alt Item found
+    DB --> ORM: Equipment record
+    ORM --> EC: Equipment loaded
+else Item not found
+    DB --> ORM: Empty result set
+    ORM --> EC: Equipment not found
+    EC --> Frontend: 404 Not Found
+    Frontend --> Admin: Display selected item not found error
+end
+
+EC -> ORM: equipment->lendingItems()->whereHas(lending.status IN ['pending','approved','active'])->exists()
+ORM -> DB: SELECT EXISTS(...) FROM lending_items JOIN lendings WHERE equipment_id = ? AND lending.status IN (...)
+
+alt Item has open lendings
+    DB --> ORM: Exists = true
+    ORM --> EC: Open lendings detected
+
+    EC -> ORM: equipment->save(available_quantity = 0, pending_deletion = true)
+    ORM -> DB: UPDATE equipment SET available_quantity = 0, pending_deletion = 1 WHERE id = ?
+
+    alt Pending deletion update success
+        DB --> ORM: Update successful
+        ORM --> EC: Item marked pending deletion
+        EC --> Frontend: Redirect to inventory_management with warning message
+        Frontend --> Admin: Show "Este equipo está vinculado a préstamos pendientes o activos..."
+    else Pending deletion update failure
+        DB --> ORM: Update failed / SQL exception
+        ORM --> EC: Pending deletion update failed
+        EC --> Frontend: 500 Internal Server Error
+        Frontend --> Admin: Display system error while marking item pending deletion
+    end
+
+else Item has no open lendings
+    DB --> ORM: Exists = false
+    ORM --> EC: No open lendings detected
+
+    EC -> ORM: equipment->delete()
+    ORM -> DB: DELETE FROM equipment WHERE id = ?
+
+    alt Delete success
+        DB --> ORM: Delete successful
+        ORM --> EC: Item removed from database
+        EC --> Frontend: Redirect to inventory_management with success message
+        Frontend --> Admin: Show "Equipo eliminado correctamente."
+    else Delete failure
+        DB --> ORM: Delete failed / SQL exception
+        ORM --> EC: Equipment delete failed
+        EC --> Frontend: 500 Internal Server Error
+        Frontend --> Admin: Display system error while deleting item
+    end
+end
+
+@enduml

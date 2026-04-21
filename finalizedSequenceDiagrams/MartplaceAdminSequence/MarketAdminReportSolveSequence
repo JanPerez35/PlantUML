@@ -1,0 +1,200 @@
+@startuml
+
+title Marketplace Admin Report Resolution and Post Deletion Sequence Diagram
+
+actor "Marketplace Admin" as Admin
+
+participant "Frontend (Website)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+participant "Public Storage" as Storage
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "UserReportController" as URC
+  participant "PostController" as PC
+  participant "Eloquent ORM" as ORM
+end box
+
+database "MariaDB Database" as DB
+
+note right of Admin
+Marketplace Admin can resolve reports
+directly or delete the reported post
+and then mark the report as resolved.
+end note
+
+note left of DB
+It is assumed the Marketplace Admin is
+authenticated/authorized unless an exception occurs.
+end note
+
+
+== Resolve Report ==
+
+Admin -> FE: Select report and confirm "Resolver"
+activate Admin
+activate FE
+activate Apache
+activate MW
+activate URC
+activate PC
+activate ORM
+activate DB
+activate Storage
+
+FE -> Apache: POST /reports/{report}/resolve
+
+alt Route exists
+    Apache -> MW: Forward HTTP resolve report request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display "Resolve report route not found" error
+end
+
+alt Valid + Authorized
+    MW -> URC: Pass authenticated and authorized resolve report request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden
+    FE --> Admin: Display validation or authorization error
+end
+
+URC -> ORM: Load report by route parameter
+ORM -> DB: SELECT * FROM reports WHERE id = ? LIMIT 1
+
+alt Report found
+    DB --> ORM: Report record
+    ORM --> URC: Report retrieved
+else Report not found
+    DB --> ORM: Empty result set
+    ORM --> URC: Report not found
+    URC --> FE: 404 Not Found
+    FE --> Admin: Display selected report not found error
+end
+
+URC -> ORM: Update report status to resolved
+ORM -> DB: UPDATE reports SET status = 'Resolved', resolved_at = CURRENT_TIMESTAMP WHERE id = ?
+
+alt Resolve update success
+    DB --> ORM: Update successful
+    ORM --> URC: Report marked resolved
+    URC --> FE: Return success response
+    FE --> Admin: Remove report row and show resolve confirmation
+else Resolve update failure
+    DB --> ORM: Update failed / SQL exception
+    ORM --> URC: Report resolution failed
+    URC --> FE: 500 Internal Server Error
+    FE --> Admin: Display system error while resolving report
+end
+
+
+== Delete Reported Post and Resolve Report ==
+
+Admin -> FE: Select report and confirm "Eliminar publicación"
+FE -> Apache: DELETE /posts/{postId}
+
+alt Route exists
+    Apache -> MW: Forward HTTP delete post request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display "Delete post route not found" error
+end
+
+alt Valid + Authorized
+    MW -> PC: Pass authenticated and authorized delete post request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden
+    FE --> Admin: Display validation or authorization error
+end
+
+PC -> ORM: Load post from route binding
+ORM -> DB: SELECT * FROM posts WHERE id = ? LIMIT 1
+
+alt Post found
+    DB --> ORM: Post record
+    ORM --> PC: Marketplace post retrieved
+else Post not found
+    DB --> ORM: Empty result set
+    ORM --> PC: Post not found
+    PC --> FE: 404 Not Found
+    FE --> Admin: Display reported post not found error
+end
+
+PC -> PC: Verify delete authorization for Admin Super or Admin Mercado
+
+alt Admin authorized to delete
+    PC -> PC: Build image path list from photo_1_url, photo_2_url, and photo_3_url
+
+    loop For each stored image
+        alt Image path exists
+            PC -> Storage: Storage::disk('public')->delete(imagePath)
+            Storage --> PC: Stored image removed
+        else Image path is null
+            note right of PC: Skip empty image field
+        end
+    end
+
+    PC -> ORM: post->delete()
+    ORM -> DB: DELETE FROM posts WHERE id = ?
+
+    alt Post delete success
+        DB --> ORM: Delete successful
+        ORM --> PC: Marketplace post removed
+        PC --> FE: Return delete success response
+    else Post delete failure
+        DB --> ORM: Delete failed / SQL exception
+        ORM --> PC: Marketplace post deletion failed
+        PC --> FE: 500 Internal Server Error
+        FE --> Admin: Display system error while deleting reported post
+    end
+
+else Admin not authorized
+    PC --> FE: 403 Forbidden
+    FE --> Admin: Display delete authorization error
+end
+
+FE -> Apache: POST /reports/{report}/resolve
+
+alt Resolve route exists
+    Apache -> MW: Forward HTTP resolve report request
+else Resolve route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display "Resolve report route not found" error
+end
+
+alt Valid + Authorized
+    MW -> URC: Pass authenticated and authorized resolve report request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden
+    FE --> Admin: Display validation or authorization error
+end
+
+URC -> ORM: Load report by route parameter
+ORM -> DB: SELECT * FROM reports WHERE id = ? LIMIT 1
+
+alt Report found
+    DB --> ORM: Report record
+    ORM --> URC: Report retrieved
+
+    URC -> ORM: Update report status to resolved
+    ORM -> DB: UPDATE reports SET status = 'Resolved', resolved_at = CURRENT_TIMESTAMP WHERE id = ?
+
+    alt Resolve update success
+        DB --> ORM: Update successful
+        ORM --> URC: Report marked resolved
+        URC --> FE: Return success response
+        FE --> Admin: Remove report row and show delete confirmation
+    else Resolve update failure
+        DB --> ORM: Update failed / SQL exception
+        ORM --> URC: Report resolution failed
+        URC --> FE: 500 Internal Server Error
+        FE --> Admin: Display system error while resolving report after deletion
+    end
+
+else Report not found
+    DB --> ORM: Empty result set
+    ORM --> URC: Report not found
+    URC --> FE: 404 Not Found
+    FE --> Admin: Display selected report not found error
+end
+
+@enduml

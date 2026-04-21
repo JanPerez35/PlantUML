@@ -1,0 +1,132 @@
+@startuml
+
+title Marketplace Post Details and Chat Opening Sequence Diagram
+
+actor User
+
+participant "Frontend (Website)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "PostController" as PC
+  participant "ChatController" as CC
+  participant "Eloquent ORM" as ORM
+end box
+
+database "MariaDB Database" as DB
+
+note right of User
+It is assumed the User is
+authenticated/authorized unless an exception occurs.
+end note
+
+
+== View Post Details ==
+
+User -> FE: Click "Ver Detalles" on marketplace post
+activate User
+activate FE
+activate Apache
+activate MW
+activate PC
+activate CC
+activate ORM
+activate DB
+
+FE -> Apache: GET /posts/{id}
+
+alt Route exists
+    Apache -> MW: Forward HTTP post details request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display "Post details route not found" error
+end
+
+alt Valid + Authorized
+    MW -> PC: Pass authenticated and authorized post details request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden
+    FE --> User: Display validation or authorization error
+end
+
+PC -> ORM: Post::with('user')->findOrFail(id)
+ORM -> DB: SELECT post with related user WHERE id = ? LIMIT 1
+
+alt Post found
+    DB --> ORM: Post and seller record
+    ORM --> PC: Post model retrieved
+else Post not found
+    DB --> ORM: Empty result set
+    ORM --> PC: Post not found
+    PC --> FE: 404 Not Found
+    FE --> User: Display selected post not found error
+end
+
+PC -> ORM: Review::where(seller_id = post.user.id)->avg('rating')
+ORM -> DB: SELECT AVG(rating) FROM reviews WHERE seller_id = ?
+
+PC -> ORM: Review::where(seller_id = post.user.id)->count()
+ORM -> DB: SELECT COUNT(*) FROM reviews WHERE seller_id = ?
+
+alt Review lookup success
+    DB --> ORM: Seller rating average and reviews count
+    ORM --> PC: Seller review aggregates retrieved
+    PC --> FE: Return post details JSON response
+    FE --> User: Display post details modal with seller information
+else Review lookup failure
+    DB --> ORM: Query failed / SQL exception
+    ORM --> PC: Seller review aggregate retrieval failed
+    PC --> FE: 500 Internal Server Error
+    FE --> User: Display system error while loading seller details
+end
+
+
+== Open Chat with Seller ==
+
+User -> FE: Click "Enviar Mensaje"
+FE -> Apache: POST /chats/open
+
+alt Route exists
+    Apache -> MW: Forward HTTP open chat request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display "Chat open route not found" error
+end
+
+alt Valid + Authorized
+    MW -> CC: Pass authenticated and authorized open chat request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    FE --> User: Display validation or authorization error
+end
+
+CC -> ORM: Find existing chat by post_id, buyer_user_id, and seller_user_id
+ORM -> DB: SELECT * FROM chats WHERE post_id = ? AND buyer_user_id = ? AND seller_user_id = ? LIMIT 1
+
+alt Chat exists
+    DB --> ORM: Existing chat record
+    ORM --> CC: Chat retrieved
+    CC --> FE: Redirect response to /chat/{chatId}
+    FE --> User: Open existing conversation
+else Chat does not exist
+    DB --> ORM: Empty result set
+    ORM --> CC: No matching chat found
+
+    CC -> ORM: Create new chat record
+    ORM -> DB: INSERT INTO chats (post_id, buyer_user_id, seller_user_id, created_at, updated_at) VALUES (...)
+
+    alt Chat creation success
+        DB --> ORM: Insert successful
+        ORM --> CC: New chat persisted
+        CC --> FE: Redirect response to /chat/{chatId}
+        FE --> User: Open new conversation
+    else Chat creation failure
+        DB --> ORM: Insert failed / SQL exception
+        ORM --> CC: Chat creation failed
+        CC --> FE: 500 Internal Server Error
+        FE --> User: Display system error while opening conversation
+    end
+end
+
+@enduml

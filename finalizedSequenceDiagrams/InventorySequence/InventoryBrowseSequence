@@ -1,0 +1,148 @@
+@startuml
+
+title User Inventory Browsing and Filtering Sequence Diagram
+
+actor User
+
+participant "Frontend (Website)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "EquipmentController" as EC
+  participant "Eloquent ORM" as ORM
+end box
+
+database "MariaDB Database" as DB
+
+note right of User
+It is assumed the User is
+authenticated/authorized unless an exception occurs.
+end note
+
+
+== Open Kinventory Page ==
+
+User -> FE: Open Kinventory page
+activate User
+activate FE
+activate Apache
+activate MW
+activate EC
+activate ORM
+activate DB
+
+FE -> Apache: GET /kinventory
+
+alt Route exists
+    Apache -> MW: Forward HTTP Kinventory request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display "Kinventory route not found" error
+end
+
+alt Valid + Authorized
+    MW -> EC: Pass authenticated and authorized Kinventory request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden
+    FE --> User: Display validation or authorization error
+end
+
+EC -> ORM: Query available inventory items with pagination
+ORM -> DB: SELECT equipment records for Kinventory page
+
+EC -> ORM: Query distinct categories for category filter
+ORM -> DB: SELECT DISTINCT category FROM equipment
+
+alt Inventory query success
+    DB --> ORM: Inventory items and categories
+    ORM --> EC: Paginated item collection and category list
+    EC --> FE: Return kinventory view
+    FE --> User: Display inventory item cards, search bar, and category filter
+else Inventory query failure
+    DB --> ORM: Query failed / SQL exception
+    ORM --> EC: Inventory retrieval failed
+    EC --> FE: 500 Internal Server Error
+    FE --> User: Display system error while loading inventory
+end
+
+
+== Search Inventory ==
+
+User -> FE: Enter search text and submit search
+FE -> Apache: GET /kinventory?search={query}
+
+alt Route exists
+    Apache -> MW: Forward HTTP inventory search request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display "Inventory search route not found" error
+end
+
+alt Valid + Authorized
+    MW -> EC: Pass authenticated and authorized search request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden
+    FE --> User: Display validation or authorization error
+end
+
+EC -> ORM: Query items filtered by search text
+ORM -> DB: SELECT filtered equipment WHERE search matches description or related fields
+
+alt Search query success
+    DB --> ORM: Filtered inventory result set
+    ORM --> EC: Matching items retrieved
+    EC --> FE: Return filtered kinventory view
+    FE --> User: Display search results
+else Search query failure
+    DB --> ORM: Query failed / SQL exception
+    ORM --> EC: Inventory search failed
+    EC --> FE: 500 Internal Server Error
+    FE --> User: Display system error while searching inventory
+end
+
+
+== Filter by Category ==
+
+User -> FE: Select category filter
+FE -> Apache: GET /kinventory?category={category}
+
+alt Route exists
+    Apache -> MW: Forward HTTP category filter request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display "Inventory category filter route not found" error
+end
+
+alt Valid + Authorized
+    MW -> EC: Pass authenticated and authorized category filter request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden
+    FE --> User: Display validation or authorization error
+end
+
+EC -> ORM: Query items filtered by selected category
+ORM -> DB: SELECT filtered equipment WHERE category = ?
+
+alt Category filter success
+    DB --> ORM: Category-filtered inventory result set
+    ORM --> EC: Matching category items retrieved
+    EC --> FE: Return filtered kinventory view
+    FE --> User: Display category-filtered inventory
+else Category filter failure
+    DB --> ORM: Query failed / SQL exception
+    ORM --> EC: Category filter retrieval failed
+    EC --> FE: 500 Internal Server Error
+    FE --> User: Display system error while filtering by category
+end
+
+
+== No Matching Items ==
+
+alt Matching items found
+    FE --> User: Display inventory results and pagination
+else No matching items found
+    FE --> User: Display "No se encontraron equipos"
+end
+
+@enduml

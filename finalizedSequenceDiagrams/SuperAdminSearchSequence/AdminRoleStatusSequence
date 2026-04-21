@@ -1,0 +1,154 @@
+@startuml
+
+title Super Admin User Role and Status Update Sequence Diagram
+
+actor "Super Admin" as Admin
+
+participant "Frontend (Website)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "UserController" as UC
+  participant "Eloquent ORM" as ORM
+end box
+
+database "MariaDB Database" as DB
+
+note right of Admin
+Super Admin can change user roles
+and ban or unban user accounts
+from the Search Users page.
+They also have access to the
+entire website.
+end note
+
+note left of DB
+It is assumed the Super Admin is
+authenticated/authorized unless an exception occurs.
+end note
+
+
+== Update User Role ==
+
+Admin -> FE: Select new role and confirm role change
+activate Admin
+activate FE
+activate Apache
+activate MW
+activate UC
+activate ORM
+activate DB
+
+FE -> Apache: PUT /users/{user}/role
+
+alt Route exists
+    Apache -> MW: Forward HTTP role update request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display "User role update route not found" error
+end
+
+alt Valid + Authorized
+    MW -> UC: Pass authenticated and authorized role update request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    FE --> Admin: Display validation or authorization error
+end
+
+UC -> UC: Validate role in ['Usuario','Admin Inventario','Admin Mercado','Admin Facilidades','Admin Super']
+
+alt Validation success
+    UC -> ORM: Load User model from route binding
+    ORM -> DB: SELECT * FROM users WHERE id = ? LIMIT 1
+
+    alt User found
+        DB --> ORM: User record
+        ORM --> UC: User retrieved
+
+        UC -> ORM: user->save(role = request.role)
+        ORM -> DB: UPDATE users SET role = ? WHERE id = ?
+
+        alt Role update success
+            DB --> ORM: Update successful
+            ORM --> UC: User role persisted
+            UC --> FE: Return JSON { message: 'Rol actualizado correctamente' }
+            FE --> Admin: Show "Rol actualizado correctamente"
+        else Role update failure
+            DB --> ORM: Update failed / SQL exception
+            ORM --> UC: User role update failed
+            UC --> FE: 500 Internal Server Error
+            FE --> Admin: Display system error while updating user role
+        end
+
+    else User not found
+        DB --> ORM: Empty result set
+        ORM --> UC: User not found
+        UC --> FE: 404 Not Found
+        FE --> Admin: Display selected user not found error
+    end
+
+else Validation failure
+    UC --> FE: 422 Unprocessable Entity
+    FE --> Admin: Display invalid role selection error
+end
+
+
+== Update User Status ==
+
+Admin -> FE: Click ban/unban button and confirm action
+FE -> Apache: PUT /users/{user}/status
+
+alt Route exists
+    Apache -> MW: Forward HTTP user status update request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display "User status update route not found" error
+end
+
+alt Valid + Authorized
+    MW -> UC: Pass authenticated and authorized status update request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    FE --> Admin: Display validation or authorization error
+end
+
+UC -> UC: Validate status in ['Activo','Bloqueado']
+
+alt Validation success
+    UC -> ORM: Load User model from route binding
+    ORM -> DB: SELECT * FROM users WHERE id = ? LIMIT 1
+
+    alt User found
+        DB --> ORM: User record
+        ORM --> UC: User retrieved
+
+        UC -> UC: previousStatus = user.status
+        UC -> ORM: user->save(status = request.status)
+        ORM -> DB: UPDATE users SET status = ? WHERE id = ?
+
+        alt Status update success
+            DB --> ORM: Update successful
+            ORM --> UC: User status persisted
+            UC --> FE: Return JSON { success, message, status }
+            FE --> Admin: Show ban/unban success confirmation "La cuenta ha sido bloqueada/desbloqueada"
+        else Status update failure
+            DB --> ORM: Update failed / SQL exception
+            ORM --> UC: User status update failed
+            UC --> FE: 500 Internal Server Error
+            FE --> Admin: Display system error while updating user status
+        end
+
+    else User not found
+        DB --> ORM: Empty result set
+        ORM --> UC: User not found
+        UC --> FE: 404 Not Found
+        FE --> Admin: Display selected user not found error
+    end
+
+else Validation failure
+    UC --> FE: 422 Unprocessable Entity
+    FE --> Admin: Display invalid status selection error
+end
+
+@enduml

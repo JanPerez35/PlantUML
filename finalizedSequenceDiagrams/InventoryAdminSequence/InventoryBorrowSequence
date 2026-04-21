@@ -1,0 +1,279 @@
+@startuml
+
+title Inventory Admin Borrow Request Management Sequence Diagram
+
+actor "Inventory Admin" as Admin
+participant "Frontend Website" as Frontend
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "LendingController" as LC
+  participant "Eloquent ORM" as ORM
+end box
+
+database "MariaDB Database" as DB
+
+note right of Admin
+Inventory Admin can review pending
+special requests, approve or reject them,
+and mark approved lendings as returned.
+end note
+
+note left of DB
+It is assumed the Inventory Admin is
+authenticated/authorized unless an exception occurs.
+end note
+
+
+== View / Filter Borrow Requests ==
+
+Admin -> Frontend: Open borrows management page or apply search/date filters
+activate Admin
+activate Frontend
+activate Apache
+activate MW
+activate LC
+activate ORM
+activate DB
+
+Frontend -> Apache: GET /inventory_management/borrows?search=&date=
+
+alt Route exists
+    Apache -> MW: Forward HTTP borrow management request
+else Route not found
+    Apache --> Frontend: 404 Not Found
+    Frontend --> Admin: Display "Borrow management route not found" error
+end
+
+alt Valid + Authorized
+    MW -> LC: Pass authenticated and authorized borrows request
+else Validation/Auth error
+    MW --> Frontend: 401 Unauthorized / 403 Forbidden
+    Frontend --> Admin: Display validation or authorization error
+end
+
+LC -> ORM: Lending::with(user, items.equipment)->where(status = 'pending')
+ORM -> DB: SELECT pending lendings with related user and equipment
+
+LC -> ORM: Lending::with(user, items.equipment)->whereIn(status, ['approved','active'])
+ORM -> DB: SELECT approved/active lendings with related user and equipment
+
+alt Search filter present
+    LC -> ORM: Apply search conditions on user name, equipment description/location, special_reason, commentary, or start_time date
+    ORM -> DB: SELECT filtered pending and approved lendings by search term
+else No search filter
+    note right of LC: Keep unfiltered lending queries
+end
+
+alt Date filter present
+    LC -> ORM: Apply whereDate(start_time = request.date) to both queries
+    ORM -> DB: SELECT filtered lendings by pickup date
+else No date filter
+    note right of LC: Keep all request dates
+end
+
+alt Borrow query success
+    DB --> ORM: Pending and approved lending result sets
+    ORM --> LC: pending and approved collections
+    LC --> Frontend: Return inventory_management.borrows view
+    Frontend --> Admin: Display pending special requests and active approved requests
+else Borrow query failure
+    DB --> ORM: Query failed / SQL exception
+    ORM --> LC: Lending retrieval failed
+    LC --> Frontend: 500 Internal Server Error
+    Frontend --> Admin: Display system error while loading borrow requests
+end
+
+
+== Approve Special Request ==
+
+Admin -> Frontend: Confirm "Aprobar" special request
+Frontend -> Apache: POST /inventory_management/requests/{id}/approve
+
+alt Route exists
+    Apache -> MW: Forward HTTP approve request
+else Route not found
+    Apache --> Frontend: 404 Not Found
+    Frontend --> Admin: Display "Approve request route not found" error
+end
+
+alt Valid + Authorized
+    MW -> LC: Pass authenticated and authorized approval request
+else Validation/Auth error
+    MW --> Frontend: 401 Unauthorized / 403 Forbidden
+    Frontend --> Admin: Display validation or authorization error
+end
+
+LC -> ORM: Lending::with(items, user)->findOrFail(id)
+ORM -> DB: SELECT lending with items and user WHERE id = ?
+
+alt Lending found
+    DB --> ORM: Lending record with related items and user
+    ORM --> LC: Lending loaded
+else Lending not found
+    DB --> ORM: Empty result set
+    ORM --> LC: Lending not found
+    LC --> Frontend: 404 Not Found
+    Frontend --> Admin: Display selected request not found error
+end
+
+loop For each lending item
+    LC -> ORM: Equipment::lockForUpdate()->findOrFail(item.equipment_id)
+    ORM -> DB: SELECT * FROM equipment WHERE id = ? FOR UPDATE
+
+    alt Enough inventory available
+        DB --> ORM: Locked equipment row
+        ORM --> LC: Equipment loaded
+
+        LC -> ORM: equipment->save(available_quantity -= item.quantity)
+        ORM -> DB: UPDATE equipment SET available_quantity = ? WHERE id = ?
+
+        LC -> ORM: item->save(item_status = 'approved')
+        ORM -> DB: UPDATE lending_items SET item_status = 'approved' WHERE id = ?
+    else Insufficient inventory
+        DB --> ORM: Locked row with insufficient available_quantity
+        ORM --> LC: Inventory validation failed
+        LC --> Frontend: 500 Internal Server Error / Exception
+        Frontend --> Admin: Display insufficient inventory approval error
+    end
+end
+
+LC -> ORM: lending->save(status = 'approved')
+ORM -> DB: UPDATE lendings SET status = 'approved' WHERE id = ?
+
+alt Approval persistence success
+    DB --> ORM: Update successful
+    ORM --> LC: Lending approved
+    LC --> Frontend: Redirect to borrows page with success message
+    Frontend --> Admin: Show "Solicitud aprobada correctamente."
+else Approval persistence failure
+    DB --> ORM: Update failed / SQL exception
+    ORM --> LC: Lending approval failed
+    LC --> Frontend: 500 Internal Server Error
+    Frontend --> Admin: Display system error while approving request
+end
+
+
+== Reject Special Request ==
+
+Admin -> Frontend: Confirm "Denegar" special request
+Frontend -> Apache: POST /inventory_management/requests/{id}/reject
+
+alt Route exists
+    Apache -> MW: Forward HTTP reject request
+else Route not found
+    Apache --> Frontend: 404 Not Found
+    Frontend --> Admin: Display "Reject request route not found" error
+end
+
+alt Valid + Authorized
+    MW -> LC: Pass authenticated and authorized rejection request
+else Validation/Auth error
+    MW --> Frontend: 401 Unauthorized / 403 Forbidden
+    Frontend --> Admin: Display validation or authorization error
+end
+
+LC -> ORM: Lending::with(items, user)->findOrFail(id)
+ORM -> DB: SELECT lending with items and user WHERE id = ?
+
+alt Lending found
+    DB --> ORM: Lending record with related items and user
+    ORM --> LC: Lending loaded
+else Lending not found
+    DB --> ORM: Empty result set
+    ORM --> LC: Lending not found
+    LC --> Frontend: 404 Not Found
+    Frontend --> Admin: Display selected request not found error
+end
+
+loop For each lending item
+    LC -> ORM: item->save(item_status = 'rejected')
+    ORM -> DB: UPDATE lending_items SET item_status = 'rejected' WHERE id = ?
+end
+
+LC -> ORM: lending->save(status = 'rejected')
+ORM -> DB: UPDATE lendings SET status = 'rejected' WHERE id = ?
+
+alt Rejection persistence success
+    DB --> ORM: Update successful
+    ORM --> LC: Lending rejected
+    LC --> Frontend: Redirect to borrows page with success message
+    Frontend --> Admin: Show "Solicitud denegada correctamente."
+else Rejection persistence failure
+    DB --> ORM: Update failed / SQL exception
+    ORM --> LC: Lending rejection failed
+    LC --> Frontend: 500 Internal Server Error
+    Frontend --> Admin: Display system error while rejecting request
+end
+
+
+== Mark Request as Returned ==
+
+Admin -> Frontend: Confirm "Marcar como Devuelto"
+Frontend -> Apache: POST /inventory_management/requests/{id}/return
+
+alt Route exists
+    Apache -> MW: Forward HTTP return request
+else Route not found
+    Apache --> Frontend: 404 Not Found
+    Frontend --> Admin: Display "Return request route not found" error
+end
+
+alt Valid + Authorized
+    MW -> LC: Pass authenticated and authorized return request
+else Validation/Auth error
+    MW --> Frontend: 401 Unauthorized / 403 Forbidden
+    Frontend --> Admin: Display validation or authorization error
+end
+
+LC -> ORM: Lending::with(items)->findOrFail(id)
+ORM -> DB: SELECT lending with related items WHERE id = ?
+
+alt Lending found
+    DB --> ORM: Lending record with items
+    ORM --> LC: Lending loaded
+else Lending not found
+    DB --> ORM: Empty result set
+    ORM --> LC: Lending not found
+    LC --> Frontend: 404 Not Found
+    Frontend --> Admin: Display selected request not found error
+end
+
+loop For each lending item
+    LC -> ORM: Equipment::lockForUpdate()->findOrFail(item.equipment_id)
+    ORM -> DB: SELECT * FROM equipment WHERE id = ? FOR UPDATE
+
+    alt Equipment found
+        DB --> ORM: Locked equipment row
+        ORM --> LC: Equipment loaded
+
+        LC -> ORM: equipment->save(available_quantity += item.quantity)
+        ORM -> DB: UPDATE equipment SET available_quantity = ? WHERE id = ?
+
+        LC -> ORM: item->save(item_status = 'returned')
+        ORM -> DB: UPDATE lending_items SET item_status = 'returned' WHERE id = ?
+    else Equipment missing
+        DB --> ORM: Empty result set
+        ORM --> LC: Equipment not found
+        LC --> Frontend: 404 Not Found / 500 Error
+        Frontend --> Admin: Display related equipment not found error
+    end
+end
+
+LC -> ORM: lending->save(status = 'returned')
+ORM -> DB: UPDATE lendings SET status = 'returned' WHERE id = ?
+
+alt Return persistence success
+    DB --> ORM: Update successful
+    ORM --> LC: Lending marked returned
+    LC --> Frontend: Redirect to borrows page with success message
+    Frontend --> Admin: Show "Equipo marcado como devuelto."
+else Return persistence failure
+    DB --> ORM: Update failed / SQL exception
+    ORM --> LC: Return processing failed
+    LC --> Frontend: 500 Internal Server Error
+    Frontend --> Admin: Display system error while marking request returned
+end
+
+@enduml

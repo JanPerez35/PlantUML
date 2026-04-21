@@ -1,0 +1,168 @@
+@startuml
+
+title User Profile Overview and Posts Management Sequence Diagram
+
+actor User
+
+participant "Frontend (Website)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "ProfileController" as PC
+  participant "PostController" as PostC
+  participant "Eloquent ORM" as ORM
+end box
+
+database "MariaDB Database" as DB
+
+note right of User
+It is assumed the User is
+authenticated/authorized unless an exception occurs.
+end note
+
+
+== Open My Profile Page ==
+
+User -> FE: Open "Mi Perfil"
+activate User
+activate FE
+activate Apache
+activate MW
+activate PC
+activate PostC
+activate ORM
+activate DB
+
+FE -> Apache: GET /my_profile
+
+alt Route exists
+    Apache -> MW: Forward HTTP profile request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display "My profile route not found" error
+end
+
+alt Valid + Authorized
+    MW -> PC: Pass authenticated and authorized profile request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden
+    FE --> User: Display validation or authorization error
+end
+
+PC -> ORM: Load authenticated user
+ORM -> DB: SELECT current authenticated user record
+
+PC -> ORM: Lending::with(items.equipment)->where(user_id = user.id)
+ORM -> DB: SELECT user lending requests with related equipment
+
+PC -> ORM: Post::where(user_id = user.id)->latest()->get()
+ORM -> DB: SELECT user posts ORDER BY created_at DESC
+
+PC -> ORM: Review::where(seller_id = user.id)->avg('rating')
+ORM -> DB: SELECT AVG(rating) FROM reviews WHERE seller_id = ?
+
+PC -> ORM: Review::where(seller_id = user.id)->count()
+ORM -> DB: SELECT COUNT(*) FROM reviews WHERE seller_id = ?
+
+alt Profile query success
+    DB --> ORM: User profile data, requests, posts, and seller rating stats
+    ORM --> PC: Profile datasets retrieved
+    PC --> FE: Return my_profile view
+    FE --> User: Display profile summary, posts tab, and requests tab
+else Profile query failure
+    DB --> ORM: Query failed / SQL exception
+    ORM --> PC: Profile data retrieval failed
+    PC --> FE: 500 Internal Server Error
+    FE --> User: Display system error while loading profile
+end
+
+
+== Filter My Posts ==
+
+User -> FE: Search posts or filter by sport/price
+
+alt Matching posts found
+    FE --> User: Display filtered post cards and client-side pagination
+else No matching posts found
+    FE --> User: Display "No se encontraron publicaciones"
+end
+
+
+== View Post Details ==
+
+User -> FE: Click "Ver Detalles" on selected post
+FE -> Apache: GET /posts/{id}
+
+alt Route exists
+    Apache -> MW: Forward HTTP post details request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display "Post details route not found" error
+end
+
+alt Valid + Authorized
+    MW -> PostC: Pass authenticated and authorized post details request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden
+    FE --> User: Display validation or authorization error
+end
+
+PostC -> ORM: Post::with('user')->findOrFail(id)
+ORM -> DB: SELECT post with related user WHERE id = ? LIMIT 1
+
+alt Post found
+    DB --> ORM: Post and seller record
+    ORM --> PostC: Post retrieved
+
+    PostC -> ORM: Review::where(seller_id = post.user.id)->avg('rating')
+    ORM -> DB: SELECT AVG(rating) FROM reviews WHERE seller_id = ?
+
+    PostC -> ORM: Review::where(seller_id = post.user.id)->count()
+    ORM -> DB: SELECT COUNT(*) FROM reviews WHERE seller_id = ?
+
+    alt Seller rating lookup success
+        DB --> ORM: Seller rating average and review count
+        ORM --> PostC: Seller rating metrics retrieved
+        PostC --> FE: Return post details JSON
+        FE --> User: Display post details modal
+    else Seller rating lookup failure
+        DB --> ORM: Query failed / SQL exception
+        ORM --> PostC: Seller rating retrieval failed
+        PostC --> FE: 500 Internal Server Error
+        FE --> User: Display system error while loading post details
+    end
+
+else Post not found
+    DB --> ORM: Empty result set
+    ORM --> PostC: Post not found
+    PostC --> FE: 404 Not Found
+    FE --> User: Display selected post not found error
+end
+
+
+== Remove Post from Profile View ==
+
+User -> FE: Click "Eliminar Publicación" on selected post
+
+alt Delete button available
+    FE --> User: Display delete confirmation modal
+else Delete action unavailable
+    FE --> User: Keep current posts view unchanged
+end
+
+User -> FE: Click "Continuar"
+
+FE -> FE: Close delete confirmation modal
+FE -> FE: Show delete success toast
+FE -> FE: Remove selected post card from profile view
+FE -> FE: Update posts tab count
+FE -> FE: Reapply client-side post filters and pagination
+
+alt Remaining posts still match filters
+    FE --> User: Display updated posts grid
+else No remaining posts match filters
+    FE --> User: Display "No se encontraron publicaciones"
+end
+
+@enduml

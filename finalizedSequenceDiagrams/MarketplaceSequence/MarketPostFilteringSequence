@@ -1,0 +1,130 @@
+@startuml
+
+title Marketplace Post Listing and Filtering Sequence Diagram
+
+actor User
+
+participant "Frontend (Website)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "PostController" as PC
+  participant "Eloquent ORM" as ORM
+end box
+
+database "MariaDB Database" as DB
+
+note right of User
+It is assumed the User is
+authenticated/authorized unless an exception occurs.
+end note
+
+
+== Open Marketplace Page ==
+
+User -> FE: Open Kinemarket page
+activate User
+activate FE
+activate Apache
+activate MW
+activate PC
+activate ORM
+activate DB
+
+FE -> Apache: GET /kinemarket
+
+alt Route exists
+    Apache -> MW: Forward HTTP marketplace page request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display "Marketplace route not found" error
+end
+
+alt Valid + Authorized
+    MW -> PC: Pass authenticated and authorized marketplace page request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden
+    FE --> User: Display validation or authorization error
+end
+
+PC -> ORM: Post::latest()->get()
+ORM -> DB: SELECT * FROM posts ORDER BY created_at DESC
+
+alt Initial page query success
+    DB --> ORM: Post result set
+    ORM --> PC: posts collection
+    PC --> FE: Return kinemarket view
+    FE --> User: Display marketplace page
+else Initial page query failure
+    DB --> ORM: Query failed / SQL exception
+    ORM --> PC: Post retrieval failed
+    PC --> FE: 500 Internal Server Error
+    FE --> User: Display system error while loading marketplace
+end
+
+
+== Load Marketplace Posts ==
+
+FE -> Apache: GET /posts
+
+alt Route exists
+    Apache -> MW: Forward HTTP marketplace posts request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display "Marketplace posts route not found" error
+end
+
+alt Valid + Authorized
+    MW -> PC: Pass authenticated and authorized marketplace posts request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden
+    FE --> User: Display validation or authorization error
+end
+
+PC -> ORM: Post::with('user')->latest()->get()
+ORM -> DB: SELECT posts with related user ORDER BY created_at DESC
+
+alt Posts query success
+    DB --> ORM: Posts with seller records
+    ORM --> PC: posts collection
+else Posts query failure
+    DB --> ORM: Query failed / SQL exception
+    ORM --> PC: Marketplace post retrieval failed
+    PC --> FE: 500 Internal Server Error
+    FE --> User: Display system error while loading marketplace posts
+end
+
+loop For each post
+    PC -> ORM: Review::where(seller_id = post.user_id)->avg('rating')
+    ORM -> DB: SELECT AVG(rating) FROM reviews WHERE seller_id = ?
+
+    PC -> ORM: Review::where(seller_id = post.user_id)->count()
+    ORM -> DB: SELECT COUNT(*) FROM reviews WHERE seller_id = ?
+
+    alt Review aggregate success
+        DB --> ORM: Average rating and reviews count
+        ORM --> PC: Seller review metrics retrieved
+    else Review aggregate failure
+        DB --> ORM: Query failed / SQL exception
+        ORM --> PC: Seller review aggregate retrieval failed
+        PC --> FE: 500 Internal Server Error
+        FE --> User: Display system error while loading seller ratings
+    end
+end
+
+PC --> FE: Return marketplace posts JSON
+FE --> User: Display marketplace listings with seller name, rating, category, condition, price, and time posted
+
+
+== Apply Marketplace Filters ==
+
+User -> FE: Search posts or change category/rating/price/condition filters
+
+alt Matching posts found
+    FE --> User: Display filtered marketplace results
+else No matching posts found
+    FE --> User: Display "No se encontraron publicaciones."
+end
+
+@enduml

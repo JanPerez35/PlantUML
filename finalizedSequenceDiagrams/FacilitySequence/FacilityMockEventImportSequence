@@ -1,0 +1,180 @@
+@startuml
+
+title Facility Admin Event Registration and Mock Event Import Sequence Diagram
+
+actor "Facility Admin" as Admin
+
+participant "Frontend (Web Portal)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "FacilityCostController" as FC
+  participant "Carbon Date Logic" as CarbonLogic
+  participant "Eloquent ORM" as ORM
+end box
+
+participant "Eventflow-Local Mock Events JSON" as MockJSON
+database "MariaDB Database" as DB
+
+note left of DB
+It is assumed the Facility Admin is
+authenticated/authorized unless an exception occurs.
+end note
+
+== Register Facility Usage Event ==
+
+Admin -> FE: Submit facility usage event form
+activate Admin
+activate FE
+activate Apache
+activate MW
+activate FC
+activate CarbonLogic
+activate ORM
+activate MockJSON
+activate DB
+
+FE -> Apache: POST /facility_management/storeEvent
+
+alt Route exists
+    Apache -> MW: Forward HTTP store event request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display "Store event route not found" error
+end
+
+alt Valid + Authorized
+    MW -> FC: Pass validated and authorized event registration request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    FE --> Admin: Display validation or authorization error
+end
+
+FC -> FC: Validate classroom, event_date, event_end_date, start_time, end_time, description, responsible, period_type, rate_mode, services
+
+alt Validation success
+    FC -> FC: Build payload from validated request
+else Validation failure
+    FC --> FE: 422 Unprocessable Entity
+    FE --> Admin: Display invalid event form input error
+end
+
+FC -> ORM: FacilityCost::where(classroom_name = payload.classroom)->where(pending_deletion = false)->firstOrFail()
+ORM -> DB: SELECT * FROM facility_costs WHERE classroom_name = ? AND pending_deletion = 0 LIMIT 1
+
+alt Classroom found
+    DB --> ORM: Active classroom record
+    ORM --> FC: facilityCost loaded
+else Classroom missing
+    DB --> ORM: Empty result set
+    ORM --> FC: Classroom not found
+    FC --> FE: 404 Not Found / 500 Error
+    FE --> Admin: Display selected classroom unavailable error
+end
+
+FC -> CarbonLogic: Parse start date, end date, start time, end time
+
+alt End time greater than start time
+    CarbonLogic --> FC: Valid event time range
+else Invalid time range
+    CarbonLogic --> FC: end_time <= start_time
+    FC --> FE: 422 Unprocessable Entity
+    FE --> Admin: Display "La hora de finalización debe ser mayor que la hora de inicio."
+end
+
+FC -> FC: Calculate hoursPerDay, daysUsed, hoursUsed
+FC -> FC: getRateByPeriodAndMode(facilityCost, period_type, rate_mode)
+FC -> FC: getUnitsUsed(startDate, endDate, rate_mode)
+FC -> FC: Calculate baseCost + servicesCost + total
+
+FC -> ORM: FacilityCostReport::firstOrCreate(user_id = auth()->id())
+ORM -> DB: SELECT * FROM facility_cost_reports WHERE user_id = ? LIMIT 1 OR INSERT new report
+
+alt Report record available
+    DB --> ORM: Existing or created report
+    ORM --> FC: facilityCostReport loaded
+else Report lookup/create failure
+    DB --> ORM: Query failed / SQL exception
+    ORM --> FC: Facility cost report retrieval failed
+    FC --> FE: 500 Internal Server Error
+    FE --> Admin: Display system error while preparing facility report
+end
+
+FC -> ORM: FacilityCostReportItem::create(eventDetails + calculated_cost)
+ORM -> DB: INSERT INTO facility_cost_report_items (facility_cost_report_id, facility_cost_id, responsible, period_type, services, rate_mode, start_time, end_time, event_date, end_date, event_description, hours_used, calculated_cost) VALUES (...)
+
+alt Report item insert success
+    DB --> ORM: Insert successful
+    ORM --> FC: Facility event persisted
+    FC --> FE: Redirect to facility_management with rental_saved message
+    FE --> Admin: Show "Evento creado correctamente."
+else Report item insert failure
+    DB --> ORM: Insert failed / SQL exception
+    ORM --> FC: Facility event persistence failed
+    FC --> FE: 500 Internal Server Error
+    FE --> Admin: Display system error while saving facility event
+end
+
+== Import Mock External Events ==
+
+Admin -> FE: Import mock external events
+FE -> Apache: POST /facility_management/importMockEvents
+
+alt Route exists
+    Apache -> MW: Forward HTTP mock import request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display "Mock import route not found" error
+end
+
+alt Valid + Authorized
+    MW -> FC: Pass validated and authorized mock import request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden
+    FE --> Admin: Display validation or authorization error
+end
+
+FC -> MockJSON: Read storage/app/mock_eventflow_events.json
+
+alt JSON file exists and is valid
+    MockJSON --> FC: Return decoded mock events array
+else JSON file missing or invalid
+    MockJSON --> FC: Return empty event array
+    note right of FC: No mock events imported
+end
+
+loop For each mock event
+    FC -> ORM: FacilityCost::where(classroom_name = event.classroom)->where(pending_deletion = false)->exists()
+    ORM -> DB: SELECT EXISTS(...) FROM facility_costs WHERE classroom_name = ? AND pending_deletion = 0
+
+    alt Classroom exists
+        DB --> ORM: Exists = true
+        ORM --> FC: Classroom available for import
+
+        FC -> ORM: FacilityCost::where(classroom_name = event.classroom)->where(pending_deletion = false)->firstOrFail()
+        ORM -> DB: SELECT * FROM facility_costs WHERE classroom_name = ? AND pending_deletion = 0 LIMIT 1
+
+        FC -> FC: createFacilityReportItemFromPayload(event)
+        FC -> ORM: FacilityCostReportItem::create(importedEventDetails)
+        ORM -> DB: INSERT INTO facility_cost_report_items (...)
+    else Classroom missing
+        DB --> ORM: Exists = false
+        ORM --> FC: Classroom unavailable
+        note right of FC: Skip event import\nDo not create report item
+    end
+end
+
+alt Import processing success
+    DB --> ORM: Insert(s) successful
+    ORM --> FC: Mock import completed
+    FC --> FE: Redirect to facility_management with imported count
+    FE --> Admin: Show "0 evento(s) simulados importados correctamente."
+else Import processing failure
+    DB --> ORM: Insert failed / SQL exception
+    ORM --> FC: Mock import persistence failed
+    FC --> FE: 500 Internal Server Error
+    FE --> Admin: Display system error while importing mock events
+end
+
+@enduml

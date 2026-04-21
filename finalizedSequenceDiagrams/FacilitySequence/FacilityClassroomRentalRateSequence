@@ -1,0 +1,188 @@
+@startuml
+
+title Facility Classroom Rental Rate Management Sequence Diagram
+
+actor "Facility Admin" as Admin
+
+participant "Frontend (Web Portal)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "FacilityCostController" as FC
+  participant "Eloquent ORM" as ORM
+end box
+
+database "MariaDB Database" as DB
+
+note left of DB
+It is assumed the Facility Admin is
+authenticated/authorized unless an exception occurs.
+end note
+
+== Save / Update Rental Rates ==
+
+Admin -> FE: Submit classroom rental rates
+activate Admin
+activate FE
+activate Apache
+activate MW
+activate FC
+activate ORM
+activate DB
+
+FE -> Apache: POST /facility_management/saveRates
+
+alt Route exists
+    Apache -> MW: Forward HTTP save rates request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display "Save rates route not found" error
+end
+
+alt Valid + Authorized
+    MW -> FC: Pass validated and authorized save rates request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    FE --> Admin: Display validation or authorization error
+end
+
+FC -> FC: Validate classrooms array and all rental/service cost fields
+
+alt Validation success
+    loop For each selected classroom_name
+        FC -> ORM: FacilityCost::updateOrCreate(classroom_name, ratesAndCosts)
+        ORM -> DB: INSERT INTO facility_costs (...) OR UPDATE facility_costs SET ... WHERE classroom_name = ?
+    end
+
+    alt Upsert success
+        DB --> ORM: Insert/update successful
+        ORM --> FC: Classroom rates persisted
+        FC --> FE: Redirect to facility_management with rates_saved message
+        FE --> Admin: Show "Tarifas guardadas correctamente."
+    else Upsert failure
+        DB --> ORM: Insert/update failed / SQL exception
+        ORM --> FC: Classroom rate persistence failed
+        FC --> FE: 500 Internal Server Error
+        FE --> Admin: Display system error while saving classroom rates
+    end
+
+else Validation failure
+    FC --> FE: 422 Unprocessable Entity
+    FE --> Admin: Display invalid classroom/rate input error
+end
+
+== Add Classroom ==
+
+Admin -> FE: Submit new classroom name
+FE -> Apache: POST /facility_management/storeClassroom
+
+alt Route exists
+    Apache -> MW: Forward HTTP add classroom request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display "Add classroom route not found" error
+end
+
+alt Valid + Authorized
+    MW -> FC: Pass validated and authorized add classroom request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    FE --> Admin: Display validation or authorization error
+end
+
+FC -> FC: Validate classroom_name (required, min:6, max:40, unique)
+
+alt Validation success
+    FC -> ORM: FacilityCost::create(defaultClassroomRecord)
+    ORM -> DB: INSERT INTO facility_costs (classroom_name, classroom_space, supply_cost, electricity_cost, water_cost, daily_cost_1, ..., monthly_cost_3) VALUES (...)
+
+    alt Classroom insert success
+        DB --> ORM: Insert successful
+        ORM --> FC: Classroom persisted
+        FC --> FE: Redirect to facility_management with success message
+        FE --> Admin: Show "Salón agregado correctamente."
+    else Classroom insert failure
+        DB --> ORM: Insert failed / SQL exception
+        ORM --> FC: Classroom persistence failed
+        FC --> FE: 500 Internal Server Error
+        FE --> Admin: Display system error while creating classroom
+    end
+
+else Validation failure
+    FC --> FE: 422 Unprocessable Entity
+    FE --> Admin: Display invalid or duplicate classroom name error
+end
+
+== Delete Classroom(s) ==
+
+Admin -> FE: Select classroom(s) and delete
+FE -> Apache: POST /facility_management/destroyClassrooms
+
+alt Route exists
+    Apache -> MW: Forward HTTP delete classrooms request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display "Delete classrooms route not found" error
+end
+
+alt Valid + Authorized
+    MW -> FC: Pass validated and authorized delete classrooms request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    FE --> Admin: Display validation or authorization error
+end
+
+FC -> FC: Validate classrooms array
+
+alt Validation success
+    FC -> ORM: FacilityCost::whereIn(classroom_name, classrooms)->get()
+    ORM -> DB: SELECT * FROM facility_costs WHERE classroom_name IN (...)
+
+    alt Classroom lookup success
+        DB --> ORM: Matching classroom records
+        ORM --> FC: classrooms collection
+    else Classroom lookup failure
+        DB --> ORM: Query failed / SQL exception
+        ORM --> FC: Classroom lookup failed
+        FC --> FE: 500 Internal Server Error
+        FE --> Admin: Display system error while loading selected classrooms
+    end
+
+    loop For each classroom
+        FC -> ORM: FacilityCostReportItem::where(facility_cost_id, classroom.id)->exists()
+        ORM -> DB: SELECT EXISTS(...) FROM facility_cost_report_items WHERE facility_cost_id = ?
+
+        alt Classroom has related report items
+            DB --> ORM: Exists = true
+            ORM --> FC: Related events found
+
+            FC -> ORM: classroom->update(pending_deletion = true)
+            ORM -> DB: UPDATE facility_costs SET pending_deletion = 1 WHERE id = ?
+        else Classroom has no related report items
+            DB --> ORM: Exists = false
+            ORM --> FC: No related events found
+
+            FC -> ORM: classroom->delete()
+            ORM -> DB: DELETE FROM facility_costs WHERE id = ?
+        end
+    end
+
+    alt Classroom processing success
+        DB --> ORM: Delete/update successful
+        ORM --> FC: Classroom delete processing completed
+        FC --> FE: Redirect to facility_management with success message
+        FE --> Admin: Show "Salón(es) procesado(s) correctamente."
+    else Classroom processing failure
+        DB --> ORM: Delete/update failed / SQL exception
+        ORM --> FC: Classroom delete processing failed
+        FC --> FE: 500 Internal Server Error
+        FE --> Admin: Display system error while deleting classrooms
+    end
+
+else Validation failure
+    FC --> FE: 422 Unprocessable Entity
+    FE --> Admin: Display invalid classroom selection error
+end
+
+@enduml

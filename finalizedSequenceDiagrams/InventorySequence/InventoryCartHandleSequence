@@ -1,0 +1,207 @@
+@startuml
+
+title User Inventory Cart Checkout Request Sequence Diagram
+
+actor User
+
+participant "Frontend (Website)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "LendingController" as LC
+  participant "Eloquent ORM" as ORM
+end box
+
+database "MariaDB Database" as DB
+
+note right of User
+It is assumed the User is
+authenticated/authorized unless an exception occurs.
+end note
+
+
+== Open Cart Modal ==
+
+User -> FE: Open "Carrito"
+activate User
+activate FE
+activate Apache
+activate MW
+activate LC
+activate ORM
+activate DB
+
+alt Cart contains items
+    FE --> User: Display selected items, quantities, and loan request form
+else Cart is empty
+    FE --> User: Display "Tu carrito está vacío"
+end
+
+
+== Review Cart Items ==
+
+User -> FE: Adjust quantities or remove cart items
+
+alt Quantity stays within available stock
+    FE --> User: Update cart quantities and cart badge
+else Quantity exceeds available stock
+    FE --> User: Display "No puedes pedir más de la cantidad disponible"
+end
+
+alt User removes cart item
+    FE -> Apache: DELETE /cart/remove/{equipmentId}
+
+    alt Route exists
+        Apache -> MW: Forward HTTP remove cart item request
+    else Route not found
+        Apache --> FE: 404 Not Found
+        FE --> User: Display "Remove cart item route not found" error
+    end
+
+    alt Valid + Authorized
+        MW -> LC: Pass authenticated and authorized remove cart item request
+    else Validation/Auth error
+        MW --> FE: 401 Unauthorized / 403 Forbidden
+        FE --> User: Display validation or authorization error
+    end
+
+    LC --> FE: Redirect back with cart_removed_success message
+    FE --> User: Show "Item removido del carrito correctamente."
+else User keeps current cart items
+    note right of FE: Continue to loan request details
+end
+
+
+== Complete Loan Request Details ==
+
+User -> FE: Enter pickup date, pickup time, and loan conditions
+
+FE -> FE: Validate pickup date
+alt Pickup date missing
+    FE --> User: Display "La fecha de recogida es obligatoria."
+else Pickup date before next allowed business day
+    FE --> User: Display pickup date logistics error
+else Pickup date is Friday, Saturday, or Sunday
+    FE --> User: Display "No se permiten viernes, sábados ni domingos."
+else Pickup date valid
+    FE --> User: Keep pickup date valid
+end
+
+FE -> FE: Validate pickup time
+alt Pickup time missing
+    FE --> User: Display "La hora de recogida es obligatoria."
+else Pickup time valid
+    FE --> User: Keep pickup time valid
+end
+
+alt User selects special case
+    FE --> User: Display special case fields
+
+    FE -> FE: Validate return date
+    alt Return date missing
+        FE --> User: Display "La fecha de devolución es obligatoria."
+    else Return date is not future
+        FE --> User: Display "La fecha de devolución debe ser futura."
+    else Return date is Friday, Saturday, or Sunday
+        FE --> User: Display "No se permiten viernes, sábados ni domingos."
+    else Return date before pickup date
+        FE --> User: Display "La devolución no puede ser antes de la recogida."
+    else Return date valid
+        FE --> User: Keep return date valid
+    end
+
+    FE -> FE: Validate special reason
+    alt Reason missing
+        FE --> User: Display "La razón del caso especial es obligatoria."
+    else Reason contains invalid characters
+        FE --> User: Display invalid special reason character error
+    else Reason shorter than 10 characters
+        FE --> User: Display "La razón debe tener al menos 10 caracteres."
+    else Reason longer than 500 characters
+        FE --> User: Display "No puedes escribir más de 500 caracteres."
+    else Reason valid
+        FE --> User: Keep special reason valid
+    end
+
+else Standard request
+    note right of FE: Special case fields remain hidden
+end
+
+FE -> FE: Validate loan conditions checkbox
+alt Terms not accepted
+    FE --> User: Display "Debes aceptar los términos y condiciones."
+else Terms accepted
+    FE --> User: Enable checkout submission
+end
+
+
+== Submit Cart Checkout Request ==
+
+User -> FE: Click "Enviar Solicitud"
+FE -> Apache: POST /cart/checkout
+
+alt Route exists
+    Apache -> MW: Forward HTTP cart checkout request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display "Cart checkout route not found" error
+end
+
+alt Valid + Authorized
+    MW -> LC: Pass authenticated and authorized checkout request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    FE --> User: Display validation or authorization error
+end
+
+LC -> LC: Validate pickup_date, pickup_time, cart_quantities, and accept_terms
+
+alt Special case request
+    LC -> LC: Validate return_date and special_reason
+else Standard request
+    note right of LC: Continue with standard lending request
+end
+
+alt Validation success
+    LC -> ORM: Load cart items and current equipment availability
+    ORM -> DB: SELECT equipment records for submitted cart item IDs
+else Validation failure
+    LC --> FE: 422 Unprocessable Entity
+    FE --> User: Display invalid loan request form errors
+end
+
+alt Cart contains valid items
+    LC -> ORM: Create lending request record
+    ORM -> DB: INSERT INTO lendings (...)
+
+    loop For each cart item
+        LC -> ORM: Create lending item record
+        ORM -> DB: INSERT INTO lending_items (...)
+
+        alt Standard request
+            LC -> ORM: Update available_quantity for equipment
+            ORM -> DB: UPDATE equipment SET available_quantity = available_quantity - ? WHERE id = ?
+        else Special case request
+            note right of LC: Inventory quantity is not immediately reduced until approval
+        end
+    end
+
+    alt Checkout persistence success
+        DB --> ORM: Lending request and items saved
+        ORM --> LC: Lending request persisted
+        LC --> FE: Redirect back with request_success message
+        FE --> User: Show "Solicitud enviada correctamente"
+    else Checkout persistence failure
+        DB --> ORM: Insert/update failed / SQL exception
+        ORM --> LC: Lending request persistence failed
+        LC --> FE: 500 Internal Server Error
+        FE --> User: Display system error while submitting loan request
+    end
+
+else Cart is empty or items unavailable
+    LC --> FE: Redirect back with validation or availability error
+    FE --> User: Display cart availability error
+end
+
+@enduml

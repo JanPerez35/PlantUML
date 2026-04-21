@@ -1,0 +1,117 @@
+@startuml
+
+title Marketplace Admin Report Listing and Filtering Sequence Diagram
+
+actor "Marketplace Admin" as Admin
+
+participant "Frontend (Website)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "UserReportController" as URC
+  participant "Eloquent ORM" as ORM
+end box
+
+database "MariaDB Database" as DB
+
+note right of Admin
+Marketplace Admin reviews marketplace
+reports, filters them, and selects
+moderation actions from the reports table.
+end note
+
+note left of DB
+It is assumed the Marketplace Admin is
+authenticated/authorized unless an exception occurs.
+end note
+
+
+== Open Marketplace Management Page ==
+
+Admin -> FE: Open market management page
+activate Admin
+activate FE
+activate Apache
+activate MW
+activate URC
+activate ORM
+activate DB
+
+FE -> Apache: GET /marketplace_management
+
+alt Route exists
+    Apache -> MW: Forward HTTP marketplace management request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display "Marketplace management route not found" error
+end
+
+alt Valid + Authorized
+    MW -> URC: Pass authenticated and authorized marketplace management request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden
+    FE --> Admin: Display validation or authorization error
+end
+
+URC -> ORM: Load initial marketplace reports with reporter and reported user relationships
+ORM -> DB: SELECT reports with related reporter and reported_user data
+
+alt Initial report query success
+    DB --> ORM: Marketplace report result set
+    ORM --> URC: reports collection
+    URC --> FE: Return marketplace_management view
+    FE --> Admin: Display report table and management actions
+else Initial report query failure
+    DB --> ORM: Query failed / SQL exception
+    ORM --> URC: Marketplace report retrieval failed
+    URC --> FE: 500 Internal Server Error
+    FE --> Admin: Display system error while loading marketplace reports
+end
+
+
+== Refresh Reports Data ==
+
+FE -> Apache: GET /reports/data
+
+alt Route exists
+    Apache -> MW: Forward HTTP reports data request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display "Reports data route not found" error
+end
+
+alt Valid + Authorized
+    MW -> URC: Pass authenticated and authorized reports data request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden
+    FE --> Admin: Display validation or authorization error
+end
+
+URC -> ORM: Load reports with reporter, reported user, and related identifiers
+ORM -> DB: SELECT reports with reporter, reported_user, post_id, and reported_user_id
+
+alt Reports data query success
+    DB --> ORM: Refreshed marketplace report dataset
+    ORM --> URC: Report collection retrieved
+    URC --> FE: Return reports JSON response
+    FE --> Admin: Render reports table rows
+else Reports data query failure
+    DB --> ORM: Query failed / SQL exception
+    ORM --> URC: Reports data retrieval failed
+    URC --> FE: 500 Internal Server Error
+    FE --> Admin: Display system error while refreshing reports
+end
+
+
+== Filter Reports ==
+
+Admin -> FE: Search by user/seller or filter by reason/date
+
+alt Matching reports found
+    FE --> Admin: Display filtered reports and pagination
+else No matching reports found
+    FE --> Admin: Display "No se encuentran reportes."
+end
+
+@enduml

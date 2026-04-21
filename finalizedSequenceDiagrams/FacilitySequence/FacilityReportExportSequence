@@ -1,0 +1,145 @@
+@startuml
+
+title Facility Admin Report Export Sequence Diagram
+
+actor "Facility Admin" as Admin
+
+participant "Frontend (Web Portal)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "FacilityCostController" as FC
+  participant "Eloquent ORM" as ORM
+  participant "DomPDF" as PDFEngine
+end box
+
+database "MariaDB Database" as DB
+
+note left of DB
+It is assumed the Facility Admin is
+authenticated/authorized unless an exception occurs.
+end note
+
+== Export CSV Report ==
+
+Admin -> FE: Download filtered CSV report
+activate Admin
+activate FE
+activate Apache
+activate MW
+activate FC
+activate ORM
+activate PDFEngine
+activate DB
+
+FE -> Apache: GET /facility_management/exportCsv?report_type=&report_month=&report_year=&filter_classroom=
+
+alt Route exists
+    Apache -> MW: Forward HTTP CSV export request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display "CSV export route not found" error
+end
+
+alt Valid + Authorized
+    MW -> FC: Pass validated and authorized CSV export request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden
+    FE --> Admin: Display validation or authorization error
+end
+
+FC -> FC: Read report_type, report_month, report_year, filter_classroom from request
+FC -> ORM: FacilityCostReportItem::with(facilityCost)->orderBy(event_date, desc)
+ORM -> DB: SELECT facility_cost_report_items with related facility_costs ORDER BY event_date DESC
+
+alt Monthly report selected
+    FC -> ORM: Apply monthly filters by year and month
+    ORM -> DB: SELECT filtered monthly report items
+else Annual report selected
+    FC -> ORM: Apply annual filter by year
+    ORM -> DB: SELECT filtered annual report items
+end
+
+alt Classroom filter selected
+    FC -> ORM: Apply whereHas(facilityCost.classroom_name = filter_classroom)
+    ORM -> DB: SELECT report items filtered by classroom
+else No classroom filter selected
+    note right of FC: Include all classrooms in export
+end
+
+alt CSV query success
+    DB --> ORM: Filtered report items
+    ORM --> FC: items collection
+    FC -> FC: Build CSV filename and headers
+    FC --> FE: Stream CSV download response
+    FE --> Admin: Download CSV file and message " Tu documento se descargará en unos instantes."
+else CSV query failure
+    DB --> ORM: Query failed / SQL exception
+    ORM --> FC: CSV report retrieval failed
+    FC --> FE: 500 Internal Server Error
+    FE --> Admin: Display system error while exporting CSV report
+end
+
+== Export PDF Report ==
+
+Admin -> FE: Download filtered PDF report
+FE -> Apache: GET /facility_management/exportPdf?report_type=&report_month=&report_year=&filter_classroom=
+
+alt Route exists
+    Apache -> MW: Forward HTTP PDF export request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> Admin: Display "PDF export route not found" error
+end
+
+alt Valid + Authorized
+    MW -> FC: Pass validated and authorized PDF export request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden
+    FE --> Admin: Display validation or authorization error
+end
+
+FC -> FC: Read report_type, report_month, report_year, filter_classroom from request
+FC -> ORM: FacilityCostReportItem::with(facilityCost)->orderBy(event_date, desc)
+ORM -> DB: SELECT facility_cost_report_items with related facility_costs ORDER BY event_date DESC
+
+alt Monthly report selected
+    FC -> ORM: Apply monthly filters by year and month
+    ORM -> DB: SELECT filtered monthly report items
+else Annual report selected
+    FC -> ORM: Apply annual filter by year
+    ORM -> DB: SELECT filtered annual report items
+end
+
+alt Classroom filter selected
+    FC -> ORM: Apply whereHas(facilityCost.classroom_name = filter_classroom)
+    ORM -> DB: SELECT report items filtered by classroom
+else No classroom filter selected
+    note right of FC: Include all classrooms in export
+end
+
+alt PDF query success
+    DB --> ORM: Filtered report items
+    ORM --> FC: items collection
+    FC -> FC: grandTotal = items.sum(calculated_cost)
+else PDF query failure
+    DB --> ORM: Query failed / SQL exception
+    ORM --> FC: PDF report retrieval failed
+    FC --> FE: 500 Internal Server Error
+    FE --> Admin: Display system error while exporting PDF report
+end
+
+FC -> PDFEngine: Pdf::loadView('pdfs.facility_cost_pdf', items, grandTotal, reportType, reportMonth, reportYear, filterClassroom)->setPaper('a4', 'landscape')
+
+alt PDF render success
+    PDFEngine --> FC: PDF document generated
+    FC --> FE: Return downloadable PDF response
+    FE --> Admin: Download PDF file and message " Tu documento se descargará en unos instantes." 
+else PDF render failure
+    PDFEngine --> FC: PDF generation failed / rendering exception
+    FC --> FE: 500 Internal Server Error
+    FE --> Admin: Display system error while generating PDF report
+end
+
+@enduml
