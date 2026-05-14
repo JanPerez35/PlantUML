@@ -16,7 +16,7 @@ box "Laravel Application" #LightGreen
 end box
 
 participant "Laravel Mail Queue / SMTP" as Mailer
-participant "Gmail" as Gmail
+participant "Sendmail" as Sendmail
 database "MariaDB Database" as DB
 
 note right of Admin
@@ -36,7 +36,7 @@ activate ORM
 activate EmailService
 activate GenericMail
 activate Mailer
-activate Gmail
+activate Sendmail
 activate DB
 
 FE -> Apache: POST /admin/updateUserStatus
@@ -100,8 +100,8 @@ alt Status changed to Bloqueado
     EmailService -> Mailer: Mail::to(user.email)->queue(GenericMail)
 
     alt Email queued successfully
-        Mailer -> Gmail: Deliver blocked account notification
-        Gmail --> Mailer: Delivery accepted
+        Mailer -> Sendmail: Deliver blocked account notification
+        Sendmail --> Mailer: Delivery accepted
         Mailer --> EmailService: Email queued/sent successfully
         EmailService --> UC: Block notification completed
     else Email queue/send failure
@@ -116,8 +116,8 @@ else Status changed to Activo
     EmailService -> Mailer: Mail::to(user.email)->queue(GenericMail)
 
     alt Email queued successfully
-        Mailer -> Gmail: Deliver account reactivated notification
-        Gmail --> Mailer: Delivery accepted
+        Mailer -> Sendmail: Deliver account reactivated notification
+        Sendmail --> Mailer: Delivery accepted
         Mailer --> EmailService: Email queued/sent successfully
         EmailService --> UC: Reactivation notification completed
     else Email queue/send failure

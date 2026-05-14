@@ -17,7 +17,7 @@ box "Laravel Application" #LightGreen
 end box
 
 participant "Laravel Mail Queue / SMTP" as Mailer
-participant "Gmail" as Gmail
+participant "Sendmail" as Sendmail
 database "MariaDB Database" as DB
 
 note left of DB
@@ -39,7 +39,7 @@ activate ORM
 activate EmailService
 activate GenericMail
 activate Mailer
-activate Gmail
+activate Sendmail
 activate DB
 
 FE -> Apache: POST /checkoutCart
@@ -146,8 +146,8 @@ alt Standard request auto-approved
     EmailService -> Mailer: Mail::to(user.email)->queue(GenericMail)
 
     alt Email queued successfully
-        Mailer -> Gmail: Deliver lending approval notification
-        Gmail --> Mailer: Delivery accepted
+        Mailer -> Sendmail: Deliver lending approval notification
+        Sendmail --> Mailer: Delivery accepted
         Mailer --> EmailService: Email queued/sent successfully
         EmailService --> LC: Approval email completed
     else Email queue/send failure
@@ -234,8 +234,8 @@ alt User exists and has email
     EmailService -> Mailer: Mail::to(user.email)->queue(GenericMail)
 
     alt Email queued successfully
-        Mailer -> Gmail: Deliver manual approval email
-        Gmail --> Mailer: Delivery accepted
+        Mailer -> Sendmail: Deliver manual approval email
+        Sendmail --> Mailer: Delivery accepted
         Mailer --> EmailService: Email queued/sent successfully
         EmailService --> LC: Approval email completed
     else Email queue/send failure
@@ -334,8 +334,8 @@ alt User exists and has email
     EmailService -> Mailer: Mail::to(user.email)->queue(GenericMail)
 
     alt Email queued successfully
-        Mailer -> Gmail: Deliver lending rejection email
-        Gmail --> Mailer: Delivery accepted
+        Mailer -> Sendmail: Deliver lending rejection email
+        Sendmail --> Mailer: Delivery accepted
         Mailer --> EmailService: Email queued/sent successfully
         EmailService --> LC: Rejection email completed
     else Email queue/send failure

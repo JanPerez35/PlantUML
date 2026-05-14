@@ -18,7 +18,7 @@ end box
 
 participant "Laravel Queue Worker" as QueueWorker
 participant "Laravel Mail Queue / SMTP" as Mailer
-participant "Gmail" as Gmail
+participant "Sendmail" as Sendmail
 database "MariaDB Database" as DB
 
 note right of User
@@ -40,7 +40,7 @@ activate QueueWorker
 activate EmailService
 activate GenericMail
 activate Mailer
-activate Gmail
+activate Sendmail
 activate DB
 
 FE -> Apache: POST /sendMessage
@@ -143,8 +143,8 @@ alt Unread messages still exist
     EmailService -> Mailer: Mail::to(recipient.email)->queue(GenericMail)
 
     alt Email queued successfully
-        Mailer -> Gmail: Deliver unread reminder email
-        Gmail --> Mailer: Delivery accepted
+        Mailer -> Sendmail: Deliver unread reminder email
+        Sendmail --> Mailer: Delivery accepted
         Mailer --> EmailService: Email queued/sent successfully
         EmailService --> Job: Reminder email request completed
 
