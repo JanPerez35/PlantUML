@@ -1,0 +1,152 @@
+@startuml
+
+title Inappropriate Content Report Email Notification Sequence Diagram
+
+actor User
+
+participant "Frontend (Website)" as FE
+participant "Apache\n(HTTP Server)" as Apache
+
+box "Laravel Application" #LightGreen
+  participant "Middleware" as MW
+  participant "UserReportController" as URC
+  participant "Eloquent ORM" as ORM
+  participant "Email Service" as EmailService
+  participant "GenericMail Mailable" as GenericMail
+end box
+
+participant "Laravel Mail Queue" as Mailer
+participant "Sendmail" as Sendmail
+database "MariaDB Database" as DB
+
+note right of User
+It is assumed the User is
+authenticated/authorized unless an exception occurs.
+end note
+
+note left of DB
+This email notification only triggers
+when report_reason equals
+"Contenido inapropiado".
+end note
+
+
+== Submit Marketplace Report ==
+
+User -> FE: Submit report for inappropriate marketplace content
+activate User
+activate FE
+activate Apache
+activate MW
+activate URC
+activate ORM
+activate EmailService
+activate GenericMail
+activate Mailer
+activate Sendmail
+activate DB
+
+FE -> Apache: POST /reports
+
+alt Route exists
+    Apache -> MW: Forward HTTP marketplace report request
+else Route not found
+    Apache --> FE: 404 Not Found
+    FE --> User: Display "Report submission route not found" error
+end
+
+alt Valid + Authorized
+    MW -> URC: Pass authenticated and authorized report request
+else Validation/Auth error
+    MW --> FE: 401 Unauthorized / 403 Forbidden / 422 Unprocessable Entity
+    FE --> User: Display validation or authorization error
+end
+
+URC -> URC: Validate reported_user_id, post_id, report_reason, and description
+
+alt Validation success
+    URC -> URC: Verify reporter is not reporting themselves
+else Validation failure
+    URC --> FE: 422 Unprocessable Entity
+    FE --> User: Display invalid report form input errors
+end
+
+alt Reporter is not reported user
+    URC -> ORM: UserReport::create(user_id, reported_user_id, post_id, report_reason, description, status='pending')
+    ORM -> DB: INSERT INTO user_reports (...)
+else Reporter is reporting themselves
+    URC --> FE: 403 Forbidden
+    FE --> User: Display "No puedes reportarte a ti mismo"
+end
+
+alt Report insert success
+    DB --> ORM: Insert successful
+    ORM --> URC: Report persisted
+else Report insert failure
+    DB --> ORM: Insert failed / SQL exception
+    ORM --> URC: Report persistence failed
+    URC --> FE: 500 Internal Server Error
+    FE --> User: Display system error while submitting report
+end
+
+URC -> ORM: report->load(reporter, reportedUser, post)
+ORM -> DB: SELECT reporter, reported user, and post related to report
+
+alt Report relationships loaded
+    DB --> ORM: Reporter, reported user, and post records
+    ORM --> URC: Report context retrieved
+else Relationship load failure
+    DB --> ORM: Query failed / SQL exception
+    ORM --> URC: Report context retrieval failed
+    URC --> FE: 500 Internal Server Error
+    FE --> User: Display system error while preparing report notification
+end
+
+
+== Trigger Email for Inappropriate Content ==
+
+alt report_reason is "Contenido inapropiado"
+    URC -> ORM: User::whereIn(role, ['Administrador de Mercado','Super Administrador'])->where(status='Activo')->whereNotNull(email)->get()
+    ORM -> DB: SELECT * FROM users WHERE role IN (...) AND status = 'Activo' AND email IS NOT NULL
+
+    alt Admin lookup success
+        DB --> ORM: Active marketplace/super admin recipients
+        ORM --> URC: Admin recipient collection
+    else Admin lookup failure
+        DB --> ORM: Query failed / SQL exception
+        ORM --> URC: Admin recipient lookup failed
+        URC --> FE: 500 Internal Server Error
+        FE --> User: Display system error while notifying administrators
+    end
+
+    alt At least one admin recipient found
+        loop For each active marketplace/super admin
+            URC -> EmailService: send(admin.email, "Nuevo reporte de contenido inapropiado en MAIKINE", reportNotificationMessage)
+            EmailService -> GenericMail: new GenericMail(subjectText, messageText)
+            GenericMail --> EmailService: Mailable instance created
+            EmailService -> Mailer: Mail::to(admin.email)->queue(GenericMail)
+
+            alt Email queued successfully
+                Mailer -> Sendmail: Deliver inappropriate content report notification
+                Sendmail --> Mailer: Delivery accepted
+                Mailer --> EmailService: Email queued/sent successfully
+                EmailService --> URC: Admin notification completed
+            else Email queue/send failure
+                Mailer --> EmailService: Queue / mail transport failure
+                EmailService --> URC: Admin notification failed
+            end
+        end
+    else No active admin recipients found
+        note right of URC: No notification email sent\nNo active admin emails available
+    end
+
+else report_reason is different
+    note right of URC: Report is stored only\nNo inappropriate content email is sent
+end
+
+URC -> URC: logActivity('Crear reporte de usuario', report details)
+
+URC --> FE: Return JSON { success: true }
+FE --> User: Show report submission confirmation
+
+@enduml
